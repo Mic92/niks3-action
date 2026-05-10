@@ -13,21 +13,13 @@ inputs:
     description: >-
       Override the substituter URL written to nix.conf. Defaults to the server's configured cache-url.
     required: false
-  public-key:
-    description: >-
-      Override the trusted public key(s), space-separated. Defaults to the server's signing keys.
-    required: false
-  audience:
-    description: >-
-      Override the OIDC audience to request from GitHub. Defaults to the audience the server has configured for the GitHub issuer.
-    required: false
   skip-push:
     description: >-
       Only configure the substituter; do not push build outputs.
     default: 'false'
   niks3-bin:
     description: >-
-      Path to a niks3 binary. Defaults to downloading the release that matches this action's tag.
+      Path to a niks3 binary. Defaults to downloading the pinned niks3 release.
     required: false
   drain-timeout:
     description: >-
@@ -35,7 +27,7 @@ inputs:
     default: '600'
   debug:
     description: >-
-      Enable debug logging from the niks3 binary.
+      Enable debug logging.
     default: 'false'
 runs:
   using: node24

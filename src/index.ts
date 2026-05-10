@@ -84,25 +84,19 @@ async function setup(): Promise<void> {
 
 async function resolveConfig(): Promise<ResolvedConfig> {
   const serverURL = core.getInput('server-url', { required: true })
-  let substituter = core.getInput('substituter')
-  let publicKeys = core.getInput('public-key').split(/\s+/).filter(Boolean)
-  let audience = core.getInput('audience')
 
-  // Only hit the server if something is missing. Inputs always win.
-  if (!substituter || publicKeys.length === 0 || !audience) {
-    const fetched = await fetchCacheConfig(serverURL)
-    if (fetched) {
-      substituter ||= fetched.substituter_url
-      if (publicKeys.length === 0) publicKeys = fetched.public_keys
-      audience ||= fetched.oidc_audience
-    }
-  }
+  const fetched = await fetchCacheConfig(serverURL)
+
+  // The substituter override exists to point pulls at a CDN/mirror in front
+  // of the cache. Public keys and OIDC audience are tied to the server and
+  // have no sensible override.
+  const substituter = core.getInput('substituter') || fetched?.substituter_url || ''
 
   return {
     serverURL,
     substituter,
-    publicKeys,
-    audience,
+    publicKeys: fetched?.public_keys ?? [],
+    audience: fetched?.oidc_audience ?? '',
     skipPush: core.getBooleanInput('skip-push'),
     debug: core.getBooleanInput('debug'),
   }
@@ -164,7 +158,7 @@ async function pickMode(cfg: ResolvedConfig): Promise<'daemon' | 'storescan' | '
 
   if (!cfg.audience) {
     core.warning(
-      `no OIDC audience configured — set the 'audience' input or configure an OIDC provider with issuer ${GITHUB_ISSUER} on the server`,
+      `no OIDC audience configured — configure an OIDC provider with issuer ${GITHUB_ISSUER} on the server`,
     )
     return 'none'
   }
