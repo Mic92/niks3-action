@@ -12,10 +12,11 @@ jobs:
   e2e:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
     runs-on: ${{ matrix.os }}
     outputs:
       out-path-ubuntu-latest: ${{ steps.build.outputs.out-path-ubuntu-latest }}
+      out-path-ubuntu-24-04-arm: ${{ steps.build.outputs.out-path-ubuntu-24-04-arm }}
       out-path-macos-latest: ${{ steps.build.outputs.out-path-macos-latest }}
     steps:
       - uses: actions/checkout@v5
@@ -37,7 +38,9 @@ jobs:
               args = [ "-c" "echo ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }} > $out" ];
             }
           ')
-          echo "out-path-${{ matrix.os }}=$out" >> "$GITHUB_OUTPUT"
+          # Output names can't contain dots.
+          key=$(echo '${{ matrix.os }}' | tr . -)
+          echo "out-path-$key=$out" >> "$GITHUB_OUTPUT"
 
   # The post step (drain) runs after the e2e job ends, so we can't probe the
   # cache from within it. A follow-up job curls the .narinfo.
@@ -46,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, ubuntu-24-04-arm, macos-latest]
     steps:
       - name: Verify path is in the cache
         run: |
