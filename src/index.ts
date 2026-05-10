@@ -1,18 +1,25 @@
-// Thin wrapper around the `niks3 ci` subcommands. All orchestration logic
-// (fetching cache config, writing nix.conf, starting the daemon, draining)
-// lives in the Go binary — this file's only jobs are downloading that binary
-// and giving it the main/post lifecycle that composite actions can't have.
+// niks3 GitHub Action: configures a Nix substituter and pushes built store
+// paths to a niks3 binary cache via the niks3-hook upload daemon.
+//
+// All GitHub-specific orchestration lives here. niks3 itself only provides
+// the upload daemon (niks3-hook serve), the post-build-hook client
+// (niks3-hook send), the one-shot push CLI (niks3 push), and the server's
+// /api/cache-config endpoint.
 
 import * as core from '@actions/core'
 import * as tc from '@actions/tool-cache'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawn, spawnSync } from 'node:child_process'
+import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
-// Baked at bundle time via esbuild --define. Matches the git tag, which
-// matches the goreleaser release name — so `Mic92/niks3@v1.5.0` downloads
-// `niks3_<plat>.tar.gz` from the v1.5.0 release.
+// Baked at bundle time via esbuild --define. Matches the git tag and the
+// goreleaser release name so `Mic92/niks3-action@v1.5.0` downloads
+// `niks3_<plat>.tar.gz` from the v1.5.0 release of Mic92/niks3.
 declare const NIKS3_VERSION: string
+
+// GitHub Actions' OIDC issuer — a well-known constant.
+const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com'
 
 const isPost = !!core.getState('isPost')
 
@@ -25,97 +32,437 @@ async function main(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Main step
+// ---------------------------------------------------------------------------
+
+interface CacheConfig {
+  substituter_url: string
+  public_keys: string[]
+  oidc_audience: string
+}
+
+interface ResolvedConfig {
+  serverURL: string
+  substituter: string
+  publicKeys: string[]
+  audience: string
+  skipPush: boolean
+  debug: boolean
+}
+
 async function setup(): Promise<void> {
-  const bin = await resolveBinary()
-  core.saveState('bin', bin)
+  const binDir = await resolveBinDir()
+  const workDir = path.join(process.env.RUNNER_TEMP ?? os.tmpdir(), 'niks3')
+  fs.mkdirSync(workDir, { recursive: true })
 
-  // `niks3 ci setup` reads action inputs directly from INPUT_* env vars
-  // (server-url, substituter, public-key, audience, skip-push, debug)
-  // so we only pass structural flags here.
-  const r = spawnSync(bin, ['ci', 'setup'], { stdio: 'inherit' })
+  const cfg = await resolveConfig()
 
-  if (r.error) {
-    throw r.error
+  writeNixConf(workDir, cfg)
+
+  const mode = await pickMode(cfg)
+  core.info(`Push mode: ${mode}`)
+
+  switch (mode) {
+    case 'daemon':
+      startDaemon(binDir, workDir, cfg)
+      break
+    case 'storescan':
+      writeStoreSnapshot(path.join(workDir, 'store-pre'))
+      break
+    case 'none':
+      break
   }
 
-  if (r.signal) {
-    throw new Error(`niks3 ci setup killed by ${r.signal}`)
+  core.saveState('mode', mode)
+  core.saveState('workDir', workDir)
+  core.saveState('binDir', binDir)
+  core.saveState('serverURL', cfg.serverURL)
+  core.saveState('audience', cfg.audience)
+  core.saveState('debug', String(cfg.debug))
+}
+
+async function resolveConfig(): Promise<ResolvedConfig> {
+  const serverURL = core.getInput('server-url', { required: true })
+  let substituter = core.getInput('substituter')
+  let publicKeys = core.getInput('public-key').split(/\s+/).filter(Boolean)
+  let audience = core.getInput('audience')
+
+  // Only hit the server if something is missing. Inputs always win.
+  if (!substituter || publicKeys.length === 0 || !audience) {
+    const fetched = await fetchCacheConfig(serverURL)
+    if (fetched) {
+      substituter ||= fetched.substituter_url
+      if (publicKeys.length === 0) publicKeys = fetched.public_keys
+      audience ||= fetched.oidc_audience
+    }
   }
-  if (r.status !== 0) {
-    throw new Error(`niks3 ci setup exited ${r.status}`)
+
+  return {
+    serverURL,
+    substituter,
+    publicKeys,
+    audience,
+    skipPush: core.getBooleanInput('skip-push'),
+    debug: core.getBooleanInput('debug'),
   }
 }
 
+async function fetchCacheConfig(serverURL: string): Promise<CacheConfig | null> {
+  const u = new URL('/api/cache-config', serverURL)
+  u.searchParams.set('issuer', GITHUB_ISSUER)
+
+  try {
+    const res = await fetch(u, { signal: AbortSignal.timeout(15000) })
+    if (!res.ok) throw new Error(`server returned ${res.status}`)
+    return (await res.json()) as CacheConfig
+  } catch (err) {
+    core.warning(`could not fetch cache-config from server: ${err}`)
+    return null
+  }
+}
+
+// writeNixConf drops a nix.conf snippet and registers it via
+// NIX_USER_CONF_FILES so subsequent `nix` invocations pick it up without a
+// daemon restart. The post-build-hook line is added by startDaemon once
+// daemon mode is confirmed.
+function writeNixConf(workDir: string, cfg: ResolvedConfig): void {
+  let body = ''
+  if (cfg.substituter) body += `extra-substituters = ${cfg.substituter}\n`
+  if (cfg.publicKeys.length > 0)
+    body += `extra-trusted-public-keys = ${cfg.publicKeys.join(' ')}\n`
+
+  const confPath = path.join(workDir, 'nix.conf')
+  // World-readable: the nix daemon reads it as a different user.
+  fs.writeFileSync(confPath, body, { mode: 0o644 })
+
+  // Prepend to the existing search path so we don't mask ~/.config/nix/nix.conf.
+  const existing = process.env.NIX_USER_CONF_FILES ?? defaultUserConfFiles()
+  core.exportVariable('NIX_USER_CONF_FILES', `${confPath}:${existing}`)
+}
+
+function defaultUserConfFiles(): string {
+  const home = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config')
+  const dirs = (process.env.XDG_CONFIG_DIRS ?? '/etc/xdg').split(':')
+  return [home, ...dirs].map((d) => path.join(d, 'nix', 'nix.conf')).join(':')
+}
+
+// pickMode decides daemon vs storescan vs none.
+//   none:      skip-push set, OR no OIDC available (fork PR), OR no audience
+//   storescan: OIDC available but runner user can't set post-build-hook
+//   daemon:    OIDC available and user is trusted (the happy path)
+async function pickMode(cfg: ResolvedConfig): Promise<'daemon' | 'storescan' | 'none'> {
+  if (cfg.skipPush) {
+    core.info('skip-push set; configuring substituter only')
+    return 'none'
+  }
+
+  if (!process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
+    core.info('No OIDC token available (fork PR or missing id-token:write); configuring substituter only')
+    return 'none'
+  }
+
+  if (!cfg.audience) {
+    core.warning(
+      `no OIDC audience configured — set the 'audience' input or configure an OIDC provider with issuer ${GITHUB_ISSUER} on the server`,
+    )
+    return 'none'
+  }
+
+  if (!isTrustedUser()) {
+    core.warning(
+      "runner user is not in Nix trusted-users; falling back to store-scan push (intermediate derivations won't be cached on build failure)",
+    )
+    return 'storescan'
+  }
+
+  return 'daemon'
+}
+
+// isTrustedUser reports whether the current user can set post-build-hook.
+// A trusted user (or a writable store, i.e. single-user Nix) is required for
+// the hook to fire. Mirrors Nix's own check.
+function isTrustedUser(): boolean {
+  // Single-user install: store is directly writable, no daemon, hooks
+  // run unconditionally.
+  try {
+    fs.accessSync('/nix/store', fs.constants.W_OK)
+    return true
+  } catch {
+    /* multi-user; check trusted-users */
+  }
+
+  const username = os.userInfo().username
+  let trusted: string[]
+  try {
+    const out = execFileSync('nix', ['show-config'], { encoding: 'utf8', timeout: 10000 })
+    const line = out.split('\n').find((l) => l.startsWith('trusted-users = '))
+    trusted = line ? line.slice('trusted-users = '.length).trim().split(/\s+/) : []
+  } catch {
+    return false
+  }
+
+  return trusted.includes(username) || trusted.includes('*')
+}
+
+// startDaemon writes the post-build-hook shim, the OIDC token script, and
+// forks `niks3-hook serve` detached in its own process group so the runner's
+// step-end cleanup doesn't take it down early.
+function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void {
+  const hookBin = path.join(binDir, 'niks3-hook')
+  const socket = socketPath(workDir)
+  const tokenScript = writeTokenScript(workDir, cfg.audience)
+
+  // post-build-hook runs with a stripped env (only DRV_PATH + OUT_PATHS per
+  // `man nix.conf`); the shim bakes in absolute paths resolved now.
+  const shim = path.join(workDir, 'post-build-hook')
+  fs.writeFileSync(shim, `#!/bin/sh\nexec ${q(hookBin)} send --socket ${q(socket)}\n`, { mode: 0o755 })
+
+  // Append the hook line to the nix.conf we already wrote.
+  fs.appendFileSync(path.join(workDir, 'nix.conf'), `post-build-hook = ${shim}\n`)
+
+  const dbPath = path.join(workDir, 'queue.db')
+  const logPath = path.join(workDir, 'daemon.log')
+  const logFD = fs.openSync(logPath, 'w')
+
+  const args = [
+    'serve',
+    '--socket', socket,
+    '--db-path', dbPath,
+    '--server-url', cfg.serverURL,
+    '--auth-token-script', tokenScript,
+    '--idle-exit-timeout', '0',
+  ]
+  if (cfg.debug) args.push('--debug')
+
+  // Resolve the binary up front so a missing file is a synchronous error
+  // here, not an async 'error' event after spawn returns.
+  fs.accessSync(hookBin, fs.constants.X_OK)
+
+  const child = spawn(hookBin, args, {
+    detached: true,
+    stdio: ['ignore', logFD, logFD],
+  })
+  // Spawn-time errors (race after the access check) crash the process if
+  // unhandled. Log and let the post step's missing-pid warning explain.
+  child.on('error', (e) => core.warning(`niks3-hook serve spawn error: ${e}`))
+  child.unref()
+  fs.closeSync(logFD)
+
+  if (!child.pid) throw new Error('failed to start niks3-hook serve: no pid')
+
+  core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
+  core.saveState('daemonPid', String(child.pid))
+  core.saveState('daemonLog', logPath)
+}
+
+// writeTokenScript drops a self-contained node script that prints
+// {"token","expires_at"} JSON. niks3-hook serve runs it via
+// --auth-token-script; the audience is baked in at write time because the
+// daemon runs detached and inherits a stripped env.
+function writeTokenScript(workDir: string, audience: string): string {
+  const reqURL = process.env.ACTIONS_ID_TOKEN_REQUEST_URL ?? ''
+  const reqToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN ?? ''
+
+  const file = path.join(workDir, 'fetch-oidc-token.mjs')
+  fs.writeFileSync(
+    file,
+    `const u = new URL(${JSON.stringify(reqURL)})
+u.searchParams.set('audience', ${JSON.stringify(audience)})
+const res = await fetch(u, { headers: { Authorization: 'Bearer ' + ${JSON.stringify(reqToken)} } })
+if (!res.ok) { process.stderr.write('OIDC endpoint returned ' + res.status + '\\n'); process.exit(1) }
+const { value } = await res.json()
+const payload = JSON.parse(Buffer.from(value.split('.')[1], 'base64url').toString())
+const out = { token: value }
+if (payload.exp) out.expires_at = new Date(payload.exp * 1000).toISOString()
+process.stdout.write(JSON.stringify(out))
+`,
+    { mode: 0o600 },
+  )
+
+  return `node ${file}`
+}
+
+// writeStoreSnapshot lists store paths one-per-line. Used in storescan mode.
+function writeStoreSnapshot(file: string): void {
+  fs.writeFileSync(file, listStorePaths().join('\n') + '\n')
+}
+
+// listStorePaths returns absolute store paths, filtering out non-path entries
+// like .links/ and .lock files.
+function listStorePaths(): string[] {
+  const dir = '/nix/store'
+  return fs
+    .readdirSync(dir)
+    .filter((n) => !n.startsWith('.') && n.length > 32 && n[32] === '-')
+    .map((n) => path.join(dir, n))
+    .sort()
+}
+
+// socketPath: Unix socket paths are limited to 104 (darwin) / 108 (linux)
+// bytes including the null terminator. Fall back to os.tmpdir() if too long.
+function socketPath(workDir: string): string {
+  // sockaddr_un.sun_path is 104 bytes on darwin, 108 on linux — including
+  // the null terminator, so the path itself must be shorter by one.
+  const limit = (os.platform() === 'darwin' ? 104 : 108) - 1
+  const candidate = path.join(workDir, 'daemon.sock')
+  return candidate.length <= limit ? candidate : path.join(os.tmpdir(), 'niks3-daemon.sock')
+}
+
+// ---------------------------------------------------------------------------
+// Post step
+// ---------------------------------------------------------------------------
+
 async function post(): Promise<void> {
-  const bin = core.getState('bin')
-  if (!bin) {
-    // setup never ran (or failed before saving state) — nothing to drain.
+  const mode = core.getState('mode')
+
+  switch (mode) {
+    case 'daemon':
+      stopDaemon()
+      break
+    case 'storescan':
+      pushStoreDiff()
+      break
+    default:
+      // 'none' or empty (setup failed before saving state): nothing to do.
+      break
+  }
+}
+
+// stopDaemon SIGTERMs the niks3-hook daemon and waits for it to drain.
+function stopDaemon(): void {
+  const pid = parseInt(core.getState('daemonPid') || '0', 10)
+  if (!pid) {
+    core.warning('niks3-hook daemon pid not recorded; nothing to stop')
     return
   }
 
-  const timeoutSec = core.getInput('drain-timeout') || '600'
+  const timeoutSec = parseInt(core.getInput('drain-timeout') || '600', 10)
+  const logPath = core.getState('daemonLog')
 
-  const r = spawnSync(
-    bin,
-    ['ci', 'stop', '--timeout', `${timeoutSec}s`],
-    { stdio: 'inherit' },
-  )
-
-  if (r.error) {
-    core.warning(`niks3 ci stop failed to spawn: ${r.error.message}`)
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    // Already dead.
+    return
   }
 
-  // Never throw here — push failures are cache misses, not CI gates.
-  // `ci stop` itself emits ::warning:: on problems.
+  const deadline = Date.now() + timeoutSec * 1000
+  let lastBeat = Date.now()
+  while (Date.now() < deadline) {
+    if (!alive(pid)) {
+      core.notice('niks3: upload daemon drained')
+      return
+    }
+    // Heartbeat so the runner's no-output watchdog doesn't kill the job.
+    if (Date.now() - lastBeat > 30000) {
+      core.info('waiting for upload daemon to drain...')
+      lastBeat = Date.now()
+    }
+    sleepSync(500)
+  }
+
+  core.warning(`niks3-hook daemon did not drain within ${timeoutSec}s; killing (log: ${logPath})`)
+  try {
+    process.kill(-pid, 'SIGKILL') // negative pid = process group
+  } catch {
+    /* already gone */
+  }
 }
 
-async function resolveBinary(): Promise<string> {
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function sleepSync(ms: number): void {
+  // Atomics.wait blocks without busy-looping. SharedArrayBuffer is always
+  // available in Node.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
+// pushStoreDiff lists store paths added since setup's snapshot and pushes
+// them in one shot via `niks3 push`.
+function pushStoreDiff(): void {
+  const workDir = core.getState('workDir')
+  const binDir = core.getState('binDir')
+  const before = new Set(
+    fs
+      .readFileSync(path.join(workDir, 'store-pre'), 'utf8')
+      .split('\n')
+      .filter(Boolean),
+  )
+  const added = listStorePaths().filter((p) => !before.has(p))
+
+  if (added.length === 0) {
+    core.notice('niks3: no new store paths to push')
+    return
+  }
+
+  core.startGroup(`niks3: pushing ${added.length} paths`)
+  try {
+    const tokenScript = writeTokenScript(workDir, core.getState('audience'))
+    const args = [
+      'push',
+      '--server-url', core.getState('serverURL'),
+      '--auth-token-script', tokenScript,
+    ]
+    if (core.getState('debug') === 'true') args.push('--debug')
+    args.push(...added)
+
+    const r = spawnSync(path.join(binDir, 'niks3'), args, { stdio: 'inherit' })
+    if (r.status !== 0) throw new Error(`niks3 push exited ${r.status}`)
+    core.notice(`niks3: pushed ${added.length} paths`)
+  } catch (err) {
+    core.warning(`niks3: storescan push failed: ${err}`)
+  } finally {
+    core.endGroup()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Binary resolution
+// ---------------------------------------------------------------------------
+
+async function resolveBinDir(): Promise<string> {
   const override = core.getInput('niks3-bin')
   if (override) {
     core.info(`Using niks3 binary from input: ${override}`)
-    return override
+    return path.dirname(override)
   }
 
   const plat = platformTuple()
   const cached = tc.find('niks3', NIKS3_VERSION, plat)
-
   if (cached) {
     core.info(`Found cached niks3 ${NIKS3_VERSION} (${plat})`)
-    return path.join(cached, 'niks3')
+    return cached
   }
 
   const url = `https://github.com/Mic92/niks3/releases/download/${NIKS3_VERSION}/niks3_${plat}.tar.gz`
-
   core.info(`Downloading niks3 ${NIKS3_VERSION} from ${url}`)
 
   const tarball = await tc.downloadTool(url)
   const extracted = await tc.extractTar(tarball)
-  const dir = await tc.cacheDir(extracted, 'niks3', NIKS3_VERSION, plat)
-
-  return path.join(dir, 'niks3')
+  return tc.cacheDir(extracted, 'niks3', NIKS3_VERSION, plat)
 }
 
 // platformTuple returns the goreleaser archive suffix (e.g. "Linux_x86_64").
-// Matches the name_template in .goreleaser.yaml.
 function platformTuple(): string {
-  const sys: Record<string, string> = {
-    linux: 'Linux',
-    darwin: 'Darwin',
-  }
-
-  const arch: Record<string, string> = {
-    x64: 'x86_64',
-    arm64: 'arm64',
-  }
-
+  const sys: Record<string, string> = { linux: 'Linux', darwin: 'Darwin' }
+  const arch: Record<string, string> = { x64: 'x86_64', arm64: 'arm64' }
   const s = sys[os.platform()]
   const a = arch[os.arch()]
-
-  if (!s || !a) {
-    throw new Error(`unsupported platform: ${os.platform()}/${os.arch()}`)
-  }
-
+  if (!s || !a) throw new Error(`unsupported platform: ${os.platform()}/${os.arch()}`)
   return `${s}_${a}`
+}
+
+// q shell-quotes a single argument for the post-build-hook shim.
+function q(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`
 }
 
 main().catch((err: Error) => {

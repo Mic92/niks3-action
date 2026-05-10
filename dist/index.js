@@ -177,7 +177,7 @@ var require_file_command = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.prepareKeyValueMessage = exports2.issueFileCommand = void 0;
     var crypto = __importStar(require("crypto"));
-    var fs = __importStar(require("fs"));
+    var fs2 = __importStar(require("fs"));
     var os2 = __importStar(require("os"));
     var utils_1 = require_utils();
     function issueFileCommand(command, message) {
@@ -185,10 +185,10 @@ var require_file_command = __commonJS({
       if (!filePath) {
         throw new Error(`Unable to find environment variable for file command ${command}`);
       }
-      if (!fs.existsSync(filePath)) {
+      if (!fs2.existsSync(filePath)) {
         throw new Error(`Missing file at path: ${filePath}`);
       }
-      fs.appendFileSync(filePath, `${(0, utils_1.toCommandValue)(message)}${os2.EOL}`, {
+      fs2.appendFileSync(filePath, `${(0, utils_1.toCommandValue)(message)}${os2.EOL}`, {
         encoding: "utf8"
       });
     }
@@ -6233,11 +6233,11 @@ var require_connect = __commonJS({
         }
       };
     }
-    function buildConnector({ allowH2, maxCachedSessions, socketPath, timeout, ...opts }) {
+    function buildConnector({ allowH2, maxCachedSessions, socketPath: socketPath2, timeout, ...opts }) {
       if (maxCachedSessions != null && (!Number.isInteger(maxCachedSessions) || maxCachedSessions < 0)) {
         throw new InvalidArgumentError("maxCachedSessions must be a positive integer or zero");
       }
-      const options = { path: socketPath, ...opts };
+      const options = { path: socketPath2, ...opts };
       const sessionCache = new SessionCache(maxCachedSessions == null ? 100 : maxCachedSessions);
       timeout = timeout == null ? 1e4 : timeout;
       allowH2 = allowH2 != null ? allowH2 : false;
@@ -6990,7 +6990,7 @@ var require_client = __commonJS({
         maxKeepAliveTimeout,
         keepAliveMaxTimeout,
         keepAliveTimeoutThreshold,
-        socketPath,
+        socketPath: socketPath2,
         pipelining,
         tls,
         strictContentLength,
@@ -7025,7 +7025,7 @@ var require_client = __commonJS({
         if (maxHeaderSize != null && !Number.isFinite(maxHeaderSize)) {
           throw new InvalidArgumentError("invalid maxHeaderSize");
         }
-        if (socketPath != null && typeof socketPath !== "string") {
+        if (socketPath2 != null && typeof socketPath2 !== "string") {
           throw new InvalidArgumentError("invalid socketPath");
         }
         if (connectTimeout != null && (!Number.isFinite(connectTimeout) || connectTimeout < 0)) {
@@ -7075,7 +7075,7 @@ var require_client = __commonJS({
             ...tls,
             maxCachedSessions,
             allowH2,
-            socketPath,
+            socketPath: socketPath2,
             timeout: connectTimeout,
             ...util.nodeHasAutoSelectFamily && autoSelectFamily ? { autoSelectFamily, autoSelectFamilyAttemptTimeout } : void 0,
             ...connect2
@@ -7242,7 +7242,7 @@ var require_client = __commonJS({
       );
       resume(client);
     }
-    var constants = require_constants3();
+    var constants2 = require_constants3();
     var createRedirectInterceptor = require_redirectInterceptor();
     var EMPTY_BUF = Buffer.alloc(0);
     async function lazyllhttp() {
@@ -7309,7 +7309,7 @@ var require_client = __commonJS({
       constructor(client, socket, { exports: exports3 }) {
         assert(Number.isFinite(client[kMaxHeadersSize]) && client[kMaxHeadersSize] > 0);
         this.llhttp = exports3;
-        this.ptr = this.llhttp.llhttp_alloc(constants.TYPE.RESPONSE);
+        this.ptr = this.llhttp.llhttp_alloc(constants2.TYPE.RESPONSE);
         this.client = client;
         this.socket = socket;
         this.timeout = null;
@@ -7401,19 +7401,19 @@ var require_client = __commonJS({
             currentBufferRef = null;
           }
           const offset = llhttp.llhttp_get_error_pos(this.ptr) - currentBufferPtr;
-          if (ret === constants.ERROR.PAUSED_UPGRADE) {
+          if (ret === constants2.ERROR.PAUSED_UPGRADE) {
             this.onUpgrade(data.slice(offset));
-          } else if (ret === constants.ERROR.PAUSED) {
+          } else if (ret === constants2.ERROR.PAUSED) {
             this.paused = true;
             socket.unshift(data.slice(offset));
-          } else if (ret !== constants.ERROR.OK) {
+          } else if (ret !== constants2.ERROR.OK) {
             const ptr = llhttp.llhttp_get_error_reason(this.ptr);
             let message = "";
             if (ptr) {
               const len = new Uint8Array(llhttp.memory.buffer, ptr).indexOf(0);
               message = "Response does not match the HTTP/1.1 protocol (" + Buffer.from(llhttp.memory.buffer, ptr, len).toString() + ")";
             }
-            throw new HTTPParserError(message, constants.ERROR[ret], data.slice(offset));
+            throw new HTTPParserError(message, constants2.ERROR[ret], data.slice(offset));
           }
         } catch (err) {
           util.destroy(socket, err);
@@ -7583,7 +7583,7 @@ var require_client = __commonJS({
           socket[kBlocking] = false;
           resume(client);
         }
-        return pause ? constants.ERROR.PAUSED : 0;
+        return pause ? constants2.ERROR.PAUSED : 0;
       }
       onBody(buf) {
         const { client, socket, statusCode, maxResponseSize } = this;
@@ -7605,7 +7605,7 @@ var require_client = __commonJS({
         }
         this.bytesRead += buf.length;
         if (request.onData(buf) === false) {
-          return constants.ERROR.PAUSED;
+          return constants2.ERROR.PAUSED;
         }
       }
       onMessageComplete() {
@@ -7640,13 +7640,13 @@ var require_client = __commonJS({
         if (socket[kWriting]) {
           assert.strictEqual(client[kRunning], 0);
           util.destroy(socket, new InformationalError("reset"));
-          return constants.ERROR.PAUSED;
+          return constants2.ERROR.PAUSED;
         } else if (!shouldKeepAlive) {
           util.destroy(socket, new InformationalError("reset"));
-          return constants.ERROR.PAUSED;
+          return constants2.ERROR.PAUSED;
         } else if (socket[kReset] && client[kRunning] === 0) {
           util.destroy(socket, new InformationalError("reset"));
-          return constants.ERROR.PAUSED;
+          return constants2.ERROR.PAUSED;
         } else if (client[kPipelining] === 1) {
           setImmediate(resume, client);
         } else {
@@ -8841,7 +8841,7 @@ var require_pool = __commonJS({
         connectTimeout,
         tls,
         maxCachedSessions,
-        socketPath,
+        socketPath: socketPath2,
         autoSelectFamily,
         autoSelectFamilyAttemptTimeout,
         allowH2,
@@ -8862,7 +8862,7 @@ var require_pool = __commonJS({
             ...tls,
             maxCachedSessions,
             allowH2,
-            socketPath,
+            socketPath: socketPath2,
             timeout: connectTimeout,
             ...util.nodeHasAutoSelectFamily && autoSelectFamily ? { autoSelectFamily, autoSelectFamilyAttemptTimeout } : void 0,
             ...connect
@@ -13046,7 +13046,7 @@ var require_fetch = __commonJS({
         this.emit("terminated", error);
       }
     };
-    function fetch(input, init = {}) {
+    function fetch2(input, init = {}) {
       webidl.argumentLengthCheck(arguments, 1, { header: "globalThis.fetch" });
       const p = createDeferredPromise();
       let requestObject;
@@ -13976,7 +13976,7 @@ var require_fetch = __commonJS({
       }
     }
     module2.exports = {
-      fetch,
+      fetch: fetch2,
       Fetch,
       fetching,
       finalizeAndReportTiming
@@ -17232,7 +17232,7 @@ var require_undici = __commonJS({
     module2.exports.getGlobalDispatcher = getGlobalDispatcher;
     if (util.nodeMajor > 16 || util.nodeMajor === 16 && util.nodeMinor >= 8) {
       let fetchImpl = null;
-      module2.exports.fetch = async function fetch(resource) {
+      module2.exports.fetch = async function fetch2(resource) {
         if (!fetchImpl) {
           fetchImpl = require_fetch().fetch;
         }
@@ -18505,12 +18505,12 @@ var require_io_util = __commonJS({
     var _a;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCmdPath = exports2.tryGetExecutablePath = exports2.isRooted = exports2.isDirectory = exports2.exists = exports2.READONLY = exports2.UV_FS_O_EXLOCK = exports2.IS_WINDOWS = exports2.unlink = exports2.symlink = exports2.stat = exports2.rmdir = exports2.rm = exports2.rename = exports2.readlink = exports2.readdir = exports2.open = exports2.mkdir = exports2.lstat = exports2.copyFile = exports2.chmod = void 0;
-    var fs = __importStar(require("fs"));
+    var fs2 = __importStar(require("fs"));
     var path2 = __importStar(require("path"));
-    _a = fs.promises, exports2.chmod = _a.chmod, exports2.copyFile = _a.copyFile, exports2.lstat = _a.lstat, exports2.mkdir = _a.mkdir, exports2.open = _a.open, exports2.readdir = _a.readdir, exports2.readlink = _a.readlink, exports2.rename = _a.rename, exports2.rm = _a.rm, exports2.rmdir = _a.rmdir, exports2.stat = _a.stat, exports2.symlink = _a.symlink, exports2.unlink = _a.unlink;
+    _a = fs2.promises, exports2.chmod = _a.chmod, exports2.copyFile = _a.copyFile, exports2.lstat = _a.lstat, exports2.mkdir = _a.mkdir, exports2.open = _a.open, exports2.readdir = _a.readdir, exports2.readlink = _a.readlink, exports2.rename = _a.rename, exports2.rm = _a.rm, exports2.rmdir = _a.rmdir, exports2.stat = _a.stat, exports2.symlink = _a.symlink, exports2.unlink = _a.unlink;
     exports2.IS_WINDOWS = process.platform === "win32";
     exports2.UV_FS_O_EXLOCK = 268435456;
-    exports2.READONLY = fs.constants.O_RDONLY;
+    exports2.READONLY = fs2.constants.O_RDONLY;
     function exists(fsPath) {
       return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -19650,7 +19650,7 @@ var require_core = __commonJS({
       ExitCode2[ExitCode2["Success"] = 0] = "Success";
       ExitCode2[ExitCode2["Failure"] = 1] = "Failure";
     })(ExitCode || (exports2.ExitCode = ExitCode = {}));
-    function exportVariable(name, val) {
+    function exportVariable2(name, val) {
       const convertedVal = (0, utils_1.toCommandValue)(val);
       process.env[name] = convertedVal;
       const filePath = process.env["GITHUB_ENV"] || "";
@@ -19659,7 +19659,7 @@ var require_core = __commonJS({
       }
       (0, command_1.issueCommand)("set-env", { name }, convertedVal);
     }
-    exports2.exportVariable = exportVariable;
+    exports2.exportVariable = exportVariable2;
     function setSecret(secret) {
       (0, command_1.issueCommand)("add-mask", {}, secret);
     }
@@ -19693,7 +19693,7 @@ var require_core = __commonJS({
       return inputs.map((input) => input.trim());
     }
     exports2.getMultilineInput = getMultilineInput;
-    function getBooleanInput(name, options) {
+    function getBooleanInput2(name, options) {
       const trueValue = ["true", "True", "TRUE"];
       const falseValue = ["false", "False", "FALSE"];
       const val = getInput2(name, options);
@@ -19704,7 +19704,7 @@ var require_core = __commonJS({
       throw new TypeError(`Input does not meet YAML 1.2 "Core Schema" specification: ${name}
 Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
     }
-    exports2.getBooleanInput = getBooleanInput;
+    exports2.getBooleanInput = getBooleanInput2;
     function setOutput(name, value) {
       const filePath = process.env["GITHUB_OUTPUT"] || "";
       if (filePath) {
@@ -19739,30 +19739,30 @@ Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
       (0, command_1.issueCommand)("warning", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
     exports2.warning = warning2;
-    function notice(message, properties = {}) {
+    function notice2(message, properties = {}) {
       (0, command_1.issueCommand)("notice", (0, utils_1.toCommandProperties)(properties), message instanceof Error ? message.toString() : message);
     }
-    exports2.notice = notice;
+    exports2.notice = notice2;
     function info2(message) {
       process.stdout.write(message + os2.EOL);
     }
     exports2.info = info2;
-    function startGroup(name) {
+    function startGroup2(name) {
       (0, command_1.issue)("group", name);
     }
-    exports2.startGroup = startGroup;
-    function endGroup() {
+    exports2.startGroup = startGroup2;
+    function endGroup2() {
       (0, command_1.issue)("endgroup");
     }
-    exports2.endGroup = endGroup;
+    exports2.endGroup = endGroup2;
     function group(name, fn) {
       return __awaiter(this, void 0, void 0, function* () {
-        startGroup(name);
+        startGroup2(name);
         let result;
         try {
           result = yield fn();
         } finally {
-          endGroup();
+          endGroup2();
         }
         return result;
       });
@@ -21028,7 +21028,7 @@ var require_manifest = __commonJS({
     var core_1 = require_core();
     var os2 = require("os");
     var cp = require("child_process");
-    var fs = require("fs");
+    var fs2 = require("fs");
     function _findMatch(versionSpec, stable, candidates, archFilter) {
       return __awaiter(this, void 0, void 0, function* () {
         const platFilter = os2.platform();
@@ -21092,10 +21092,10 @@ var require_manifest = __commonJS({
       const lsbReleaseFile = "/etc/lsb-release";
       const osReleaseFile = "/etc/os-release";
       let contents = "";
-      if (fs.existsSync(lsbReleaseFile)) {
-        contents = fs.readFileSync(lsbReleaseFile).toString();
-      } else if (fs.existsSync(osReleaseFile)) {
-        contents = fs.readFileSync(osReleaseFile).toString();
+      if (fs2.existsSync(lsbReleaseFile)) {
+        contents = fs2.readFileSync(lsbReleaseFile).toString();
+      } else if (fs2.existsSync(osReleaseFile)) {
+        contents = fs2.readFileSync(osReleaseFile).toString();
       }
       return contents;
     }
@@ -21272,7 +21272,7 @@ var require_tool_cache = __commonJS({
     var core2 = __importStar(require_core());
     var io = __importStar(require_io());
     var crypto = __importStar(require("crypto"));
-    var fs = __importStar(require("fs"));
+    var fs2 = __importStar(require("fs"));
     var mm = __importStar(require_manifest());
     var os2 = __importStar(require("os"));
     var path2 = __importStar(require("path"));
@@ -21319,7 +21319,7 @@ var require_tool_cache = __commonJS({
     exports2.downloadTool = downloadTool2;
     function downloadToolAttempt(url, dest, auth, headers) {
       return __awaiter(this, void 0, void 0, function* () {
-        if (fs.existsSync(dest)) {
+        if (fs2.existsSync(dest)) {
           throw new Error(`Destination file path ${dest} already exists`);
         }
         const http = new httpm.HttpClient(userAgent, [], {
@@ -21343,7 +21343,7 @@ var require_tool_cache = __commonJS({
         const readStream = responseMessageFactory();
         let succeeded = false;
         try {
-          yield pipeline(readStream, fs.createWriteStream(dest));
+          yield pipeline(readStream, fs2.createWriteStream(dest));
           core2.debug("download complete");
           succeeded = true;
           return dest;
@@ -21555,11 +21555,11 @@ var require_tool_cache = __commonJS({
         arch2 = arch2 || os2.arch();
         core2.debug(`Caching tool ${tool} ${version} ${arch2}`);
         core2.debug(`source dir: ${sourceDir}`);
-        if (!fs.statSync(sourceDir).isDirectory()) {
+        if (!fs2.statSync(sourceDir).isDirectory()) {
           throw new Error("sourceDir is not a directory");
         }
         const destPath = yield _createToolPath(tool, version, arch2);
-        for (const itemName of fs.readdirSync(sourceDir)) {
+        for (const itemName of fs2.readdirSync(sourceDir)) {
           const s = path2.join(sourceDir, itemName);
           yield io.cp(s, destPath, { recursive: true });
         }
@@ -21574,7 +21574,7 @@ var require_tool_cache = __commonJS({
         arch2 = arch2 || os2.arch();
         core2.debug(`Caching tool ${tool} ${version} ${arch2}`);
         core2.debug(`source file: ${sourceFile}`);
-        if (!fs.statSync(sourceFile).isFile()) {
+        if (!fs2.statSync(sourceFile).isFile()) {
           throw new Error("sourceFile is not a file");
         }
         const destFolder = yield _createToolPath(tool, version, arch2);
@@ -21604,7 +21604,7 @@ var require_tool_cache = __commonJS({
         versionSpec = semver.clean(versionSpec) || "";
         const cachePath = path2.join(_getCacheDirectory(), toolName, versionSpec, arch2);
         core2.debug(`checking cache: ${cachePath}`);
-        if (fs.existsSync(cachePath) && fs.existsSync(`${cachePath}.complete`)) {
+        if (fs2.existsSync(cachePath) && fs2.existsSync(`${cachePath}.complete`)) {
           core2.debug(`Found tool in cache ${toolName} ${versionSpec} ${arch2}`);
           toolPath = cachePath;
         } else {
@@ -21618,12 +21618,12 @@ var require_tool_cache = __commonJS({
       const versions = [];
       arch2 = arch2 || os2.arch();
       const toolPath = path2.join(_getCacheDirectory(), toolName);
-      if (fs.existsSync(toolPath)) {
-        const children = fs.readdirSync(toolPath);
+      if (fs2.existsSync(toolPath)) {
+        const children = fs2.readdirSync(toolPath);
         for (const child of children) {
           if (isExplicitVersion(child)) {
             const fullPath = path2.join(toolPath, child, arch2 || "");
-            if (fs.existsSync(fullPath) && fs.existsSync(`${fullPath}.complete`)) {
+            if (fs2.existsSync(fullPath) && fs2.existsSync(`${fullPath}.complete`)) {
               versions.push(child);
             }
           }
@@ -21697,7 +21697,7 @@ var require_tool_cache = __commonJS({
     function _completeToolPath(tool, version, arch2) {
       const folderPath = path2.join(_getCacheDirectory(), tool, semver.clean(version) || version, arch2 || "");
       const markerPath = `${folderPath}.complete`;
-      fs.writeFileSync(markerPath, "");
+      fs2.writeFileSync(markerPath, "");
       core2.debug("finished caching tool");
     }
     function isExplicitVersion(versionSpec) {
@@ -21757,8 +21757,10 @@ var require_tool_cache = __commonJS({
 var core = __toESM(require_core(), 1);
 var tc = __toESM(require_tool_cache(), 1);
 var import_node_child_process = require("node:child_process");
+var fs = __toESM(require("node:fs"), 1);
 var os = __toESM(require("node:os"), 1);
 var path = __toESM(require("node:path"), 1);
+var GITHUB_ISSUER = "https://token.actions.githubusercontent.com";
 var isPost = !!core.getState("isPost");
 async function main() {
   if (isPost) {
@@ -21769,68 +21771,309 @@ async function main() {
   }
 }
 async function setup() {
-  const bin = await resolveBinary();
-  core.saveState("bin", bin);
-  const r = (0, import_node_child_process.spawnSync)(bin, ["ci", "setup"], { stdio: "inherit" });
-  if (r.error) {
-    throw r.error;
+  const binDir = await resolveBinDir();
+  const workDir = path.join(process.env.RUNNER_TEMP ?? os.tmpdir(), "niks3");
+  fs.mkdirSync(workDir, { recursive: true });
+  const cfg = await resolveConfig();
+  writeNixConf(workDir, cfg);
+  const mode = await pickMode(cfg);
+  core.info(`Push mode: ${mode}`);
+  switch (mode) {
+    case "daemon":
+      startDaemon(binDir, workDir, cfg);
+      break;
+    case "storescan":
+      writeStoreSnapshot(path.join(workDir, "store-pre"));
+      break;
+    case "none":
+      break;
   }
-  if (r.signal) {
-    throw new Error(`niks3 ci setup killed by ${r.signal}`);
+  core.saveState("mode", mode);
+  core.saveState("workDir", workDir);
+  core.saveState("binDir", binDir);
+  core.saveState("serverURL", cfg.serverURL);
+  core.saveState("audience", cfg.audience);
+  core.saveState("debug", String(cfg.debug));
+}
+async function resolveConfig() {
+  const serverURL = core.getInput("server-url", { required: true });
+  let substituter = core.getInput("substituter");
+  let publicKeys = core.getInput("public-key").split(/\s+/).filter(Boolean);
+  let audience = core.getInput("audience");
+  if (!substituter || publicKeys.length === 0 || !audience) {
+    const fetched = await fetchCacheConfig(serverURL);
+    if (fetched) {
+      substituter ||= fetched.substituter_url;
+      if (publicKeys.length === 0) publicKeys = fetched.public_keys;
+      audience ||= fetched.oidc_audience;
+    }
   }
-  if (r.status !== 0) {
-    throw new Error(`niks3 ci setup exited ${r.status}`);
+  return {
+    serverURL,
+    substituter,
+    publicKeys,
+    audience,
+    skipPush: core.getBooleanInput("skip-push"),
+    debug: core.getBooleanInput("debug")
+  };
+}
+async function fetchCacheConfig(serverURL) {
+  const u = new URL("/api/cache-config", serverURL);
+  u.searchParams.set("issuer", GITHUB_ISSUER);
+  try {
+    const res = await fetch(u, { signal: AbortSignal.timeout(15e3) });
+    if (!res.ok) throw new Error(`server returned ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    core.warning(`could not fetch cache-config from server: ${err}`);
+    return null;
   }
+}
+function writeNixConf(workDir, cfg) {
+  let body = "";
+  if (cfg.substituter) body += `extra-substituters = ${cfg.substituter}
+`;
+  if (cfg.publicKeys.length > 0)
+    body += `extra-trusted-public-keys = ${cfg.publicKeys.join(" ")}
+`;
+  const confPath = path.join(workDir, "nix.conf");
+  fs.writeFileSync(confPath, body, { mode: 420 });
+  const existing = process.env.NIX_USER_CONF_FILES ?? defaultUserConfFiles();
+  core.exportVariable("NIX_USER_CONF_FILES", `${confPath}:${existing}`);
+}
+function defaultUserConfFiles() {
+  const home = process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), ".config");
+  const dirs = (process.env.XDG_CONFIG_DIRS ?? "/etc/xdg").split(":");
+  return [home, ...dirs].map((d) => path.join(d, "nix", "nix.conf")).join(":");
+}
+async function pickMode(cfg) {
+  if (cfg.skipPush) {
+    core.info("skip-push set; configuring substituter only");
+    return "none";
+  }
+  if (!process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN) {
+    core.info("No OIDC token available (fork PR or missing id-token:write); configuring substituter only");
+    return "none";
+  }
+  if (!cfg.audience) {
+    core.warning(
+      `no OIDC audience configured \u2014 set the 'audience' input or configure an OIDC provider with issuer ${GITHUB_ISSUER} on the server`
+    );
+    return "none";
+  }
+  if (!isTrustedUser()) {
+    core.warning(
+      "runner user is not in Nix trusted-users; falling back to store-scan push (intermediate derivations won't be cached on build failure)"
+    );
+    return "storescan";
+  }
+  return "daemon";
+}
+function isTrustedUser() {
+  try {
+    fs.accessSync("/nix/store", fs.constants.W_OK);
+    return true;
+  } catch {
+  }
+  const username = os.userInfo().username;
+  let trusted;
+  try {
+    const out = (0, import_node_child_process.execFileSync)("nix", ["show-config"], { encoding: "utf8", timeout: 1e4 });
+    const line = out.split("\n").find((l) => l.startsWith("trusted-users = "));
+    trusted = line ? line.slice("trusted-users = ".length).trim().split(/\s+/) : [];
+  } catch {
+    return false;
+  }
+  return trusted.includes(username) || trusted.includes("*");
+}
+function startDaemon(binDir, workDir, cfg) {
+  const hookBin = path.join(binDir, "niks3-hook");
+  const socket = socketPath(workDir);
+  const tokenScript = writeTokenScript(workDir, cfg.audience);
+  const shim = path.join(workDir, "post-build-hook");
+  fs.writeFileSync(shim, `#!/bin/sh
+exec ${q(hookBin)} send --socket ${q(socket)}
+`, { mode: 493 });
+  fs.appendFileSync(path.join(workDir, "nix.conf"), `post-build-hook = ${shim}
+`);
+  const dbPath = path.join(workDir, "queue.db");
+  const logPath = path.join(workDir, "daemon.log");
+  const logFD = fs.openSync(logPath, "w");
+  const args = [
+    "serve",
+    "--socket",
+    socket,
+    "--db-path",
+    dbPath,
+    "--server-url",
+    cfg.serverURL,
+    "--auth-token-script",
+    tokenScript,
+    "--idle-exit-timeout",
+    "0"
+  ];
+  if (cfg.debug) args.push("--debug");
+  fs.accessSync(hookBin, fs.constants.X_OK);
+  const child = (0, import_node_child_process.spawn)(hookBin, args, {
+    detached: true,
+    stdio: ["ignore", logFD, logFD]
+  });
+  child.on("error", (e) => core.warning(`niks3-hook serve spawn error: ${e}`));
+  child.unref();
+  fs.closeSync(logFD);
+  if (!child.pid) throw new Error("failed to start niks3-hook serve: no pid");
+  core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`);
+  core.saveState("daemonPid", String(child.pid));
+  core.saveState("daemonLog", logPath);
+}
+function writeTokenScript(workDir, audience) {
+  const reqURL = process.env.ACTIONS_ID_TOKEN_REQUEST_URL ?? "";
+  const reqToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN ?? "";
+  const file = path.join(workDir, "fetch-oidc-token.mjs");
+  fs.writeFileSync(
+    file,
+    `const u = new URL(${JSON.stringify(reqURL)})
+u.searchParams.set('audience', ${JSON.stringify(audience)})
+const res = await fetch(u, { headers: { Authorization: 'Bearer ' + ${JSON.stringify(reqToken)} } })
+if (!res.ok) { process.stderr.write('OIDC endpoint returned ' + res.status + '\\n'); process.exit(1) }
+const { value } = await res.json()
+const payload = JSON.parse(Buffer.from(value.split('.')[1], 'base64url').toString())
+const out = { token: value }
+if (payload.exp) out.expires_at = new Date(payload.exp * 1000).toISOString()
+process.stdout.write(JSON.stringify(out))
+`,
+    { mode: 384 }
+  );
+  return `node ${file}`;
+}
+function writeStoreSnapshot(file) {
+  fs.writeFileSync(file, listStorePaths().join("\n") + "\n");
+}
+function listStorePaths() {
+  const dir = "/nix/store";
+  return fs.readdirSync(dir).filter((n) => !n.startsWith(".") && n.length > 32 && n[32] === "-").map((n) => path.join(dir, n)).sort();
+}
+function socketPath(workDir) {
+  const limit = (os.platform() === "darwin" ? 104 : 108) - 1;
+  const candidate = path.join(workDir, "daemon.sock");
+  return candidate.length <= limit ? candidate : path.join(os.tmpdir(), "niks3-daemon.sock");
 }
 async function post() {
-  const bin = core.getState("bin");
-  if (!bin) {
-    return;
-  }
-  const timeoutSec = core.getInput("drain-timeout") || "600";
-  const r = (0, import_node_child_process.spawnSync)(
-    bin,
-    ["ci", "stop", "--timeout", `${timeoutSec}s`],
-    { stdio: "inherit" }
-  );
-  if (r.error) {
-    core.warning(`niks3 ci stop failed to spawn: ${r.error.message}`);
+  const mode = core.getState("mode");
+  switch (mode) {
+    case "daemon":
+      stopDaemon();
+      break;
+    case "storescan":
+      pushStoreDiff();
+      break;
+    default:
+      break;
   }
 }
-async function resolveBinary() {
+function stopDaemon() {
+  const pid = parseInt(core.getState("daemonPid") || "0", 10);
+  if (!pid) {
+    core.warning("niks3-hook daemon pid not recorded; nothing to stop");
+    return;
+  }
+  const timeoutSec = parseInt(core.getInput("drain-timeout") || "600", 10);
+  const logPath = core.getState("daemonLog");
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    return;
+  }
+  const deadline = Date.now() + timeoutSec * 1e3;
+  let lastBeat = Date.now();
+  while (Date.now() < deadline) {
+    if (!alive(pid)) {
+      core.notice("niks3: upload daemon drained");
+      return;
+    }
+    if (Date.now() - lastBeat > 3e4) {
+      core.info("waiting for upload daemon to drain...");
+      lastBeat = Date.now();
+    }
+    sleepSync(500);
+  }
+  core.warning(`niks3-hook daemon did not drain within ${timeoutSec}s; killing (log: ${logPath})`);
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+  }
+}
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function pushStoreDiff() {
+  const workDir = core.getState("workDir");
+  const binDir = core.getState("binDir");
+  const before = new Set(
+    fs.readFileSync(path.join(workDir, "store-pre"), "utf8").split("\n").filter(Boolean)
+  );
+  const added = listStorePaths().filter((p) => !before.has(p));
+  if (added.length === 0) {
+    core.notice("niks3: no new store paths to push");
+    return;
+  }
+  core.startGroup(`niks3: pushing ${added.length} paths`);
+  try {
+    const tokenScript = writeTokenScript(workDir, core.getState("audience"));
+    const args = [
+      "push",
+      "--server-url",
+      core.getState("serverURL"),
+      "--auth-token-script",
+      tokenScript
+    ];
+    if (core.getState("debug") === "true") args.push("--debug");
+    args.push(...added);
+    const r = (0, import_node_child_process.spawnSync)(path.join(binDir, "niks3"), args, { stdio: "inherit" });
+    if (r.status !== 0) throw new Error(`niks3 push exited ${r.status}`);
+    core.notice(`niks3: pushed ${added.length} paths`);
+  } catch (err) {
+    core.warning(`niks3: storescan push failed: ${err}`);
+  } finally {
+    core.endGroup();
+  }
+}
+async function resolveBinDir() {
   const override = core.getInput("niks3-bin");
   if (override) {
     core.info(`Using niks3 binary from input: ${override}`);
-    return override;
+    return path.dirname(override);
   }
   const plat = platformTuple();
   const cached = tc.find("niks3", "v1.4.0", plat);
   if (cached) {
     core.info(`Found cached niks3 ${"v1.4.0"} (${plat})`);
-    return path.join(cached, "niks3");
+    return cached;
   }
   const url = `https://github.com/Mic92/niks3/releases/download/${"v1.4.0"}/niks3_${plat}.tar.gz`;
   core.info(`Downloading niks3 ${"v1.4.0"} from ${url}`);
   const tarball = await tc.downloadTool(url);
   const extracted = await tc.extractTar(tarball);
-  const dir = await tc.cacheDir(extracted, "niks3", "v1.4.0", plat);
-  return path.join(dir, "niks3");
+  return tc.cacheDir(extracted, "niks3", "v1.4.0", plat);
 }
 function platformTuple() {
-  const sys = {
-    linux: "Linux",
-    darwin: "Darwin"
-  };
-  const arch2 = {
-    x64: "x86_64",
-    arm64: "arm64"
-  };
+  const sys = { linux: "Linux", darwin: "Darwin" };
+  const arch2 = { x64: "x86_64", arm64: "arm64" };
   const s = sys[os.platform()];
   const a = arch2[os.arch()];
-  if (!s || !a) {
-    throw new Error(`unsupported platform: ${os.platform()}/${os.arch()}`);
-  }
+  if (!s || !a) throw new Error(`unsupported platform: ${os.platform()}/${os.arch()}`);
   return `${s}_${a}`;
+}
+function q(s) {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 main().catch((err) => {
   if (isPost) {

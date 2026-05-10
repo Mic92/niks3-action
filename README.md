@@ -1,9 +1,9 @@
 # niks3-action
 
 GitHub Action for pushing Nix build outputs to a [niks3](https://github.com/Mic92/niks3)
-binary cache. Configures the substituter, starts an upload daemon, and drains it
-in a post-job step — intermediate derivations get cached even when the build
-fails.
+binary cache. Each derivation is uploaded as soon as it finishes building, so
+intermediate results are cached even when the build later fails or the job is
+cancelled. Authentication uses GitHub OIDC — no secrets to manage.
 
 ## Usage
 
@@ -11,7 +11,8 @@ fails.
 permissions:
   id-token: write
 steps:
-  - uses: cachix/install-nix-action@v31
+  - uses: actions/checkout@v5
+  - uses: NixOS/nix-installer-action@main
   - uses: Mic92/niks3-action@v1
     with:
       server-url: https://niks3.example.com
@@ -25,13 +26,30 @@ for server configuration and advanced options.
 
 ## How it works
 
-This is a thin Node wrapper around the `niks3 ci` subcommands. All
-orchestration logic (fetching cache config, writing nix.conf, starting the
-daemon, draining) lives in the Go binary — this repo only downloads that binary
-and provides the main/post lifecycle that composite actions can't have.
+- The action configures a substituter so subsequent steps pull from the
+  cache, and registers a `post-build-hook` so each derivation is uploaded
+  as soon as it finishes building. **Intermediate derivations are cached
+  even when the build later fails or the job is cancelled.**
+- A post-job step drains any remaining uploads.
+- Authentication uses GitHub's built-in OIDC — no secrets to manage.
+  The job needs `permissions: id-token: write`. Fork PRs and jobs without
+  that permission still get the substituter configured, just no uploads.
+- On self-hosted runners where the user is not in Nix's `trusted-users`,
+  the action falls back to scanning `/nix/store` after the job and pushing
+  the new paths in one go (no caching of partial builds in that case).
 
-The pinned niks3 release version lives in [`NIKS3_VERSION`](NIKS3_VERSION) and
-is baked into `dist/index.js` at bundle time.
+## Inputs
+
+| Input | Required | Description |
+|---|---|---|
+| `server-url` | yes | niks3 server URL |
+| `substituter` | no | override the substituter URL (defaults from server) |
+| `public-key` | no | override the trusted public keys (defaults from server) |
+| `audience` | no | override the OIDC audience (defaults from server) |
+| `skip-push` | no | configure the substituter only, don't upload |
+| `drain-timeout` | no | seconds to wait for uploads to finish in the post step (default 600) |
+| `niks3-bin` | no | path to a niks3 binary, instead of downloading the release |
+| `debug` | no | enable debug logging |
 
 ## Development
 
@@ -42,3 +60,6 @@ npm run typecheck
 ```
 
 `dist/index.js` is committed; CI fails if it is stale.
+
+The pinned niks3 release version lives in [`NIKS3_VERSION`](NIKS3_VERSION) and
+is baked into `dist/index.js` at bundle time.
