@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --define:NIKS3_VERSION=\\\"v$(cat NIKS3_VERSION)\\\" --outfile=dist/index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --format=cjs --define:NIKS3_VERSION=\\\"v$(cat NIKS3_VERSION)\\\" --outfile=dist/index.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
