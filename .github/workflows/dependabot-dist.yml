@@ -10,7 +10,7 @@
 name: Dependabot dist
 on: pull_request_target
 permissions:
-  contents: write
+  contents: read
 jobs:
   rebuild-dist:
     # Match the PR author, not github.actor — the latter is whoever
@@ -18,9 +18,18 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-slim
     steps:
+      # Push with an App token instead of GITHUB_TOKEN so the new commit
+      # actually triggers the required CI/Test workflows; GitHub suppresses
+      # workflow_run for GITHUB_TOKEN pushes to prevent recursion.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ steps.app-token.outputs.token }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24
