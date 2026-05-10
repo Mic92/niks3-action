@@ -12,11 +12,12 @@ jobs:
   e2e:
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        os: [ubuntu-latest, ubuntu-24.04-arm, ubuntu-slim, macos-latest]
     runs-on: ${{ matrix.os }}
     outputs:
       out-path-ubuntu-latest: ${{ steps.build.outputs.out-path-ubuntu-latest }}
       out-path-ubuntu-24-04-arm: ${{ steps.build.outputs.out-path-ubuntu-24-04-arm }}
+      out-path-ubuntu-slim: ${{ steps.build.outputs.out-path-ubuntu-slim }}
       out-path-macos-latest: ${{ steps.build.outputs.out-path-macos-latest }}
     steps:
       - uses: actions/checkout@v5
@@ -49,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24-04-arm, macos-latest]
+        os: [ubuntu-latest, ubuntu-24-04-arm, ubuntu-slim, macos-latest]
     steps:
       - name: Verify path is in the cache
         run: |
