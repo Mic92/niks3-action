@@ -1,4 +1,4 @@
-name: niks3
+name: niks3 binary cache
 description: Push Nix build outputs to a niks3 binary cache with per-derivation caching
 author: Mic92
 branding:
