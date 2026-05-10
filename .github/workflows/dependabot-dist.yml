@@ -21,7 +21,7 @@ jobs:
       # Push with an App token instead of GITHUB_TOKEN so the new commit
       # actually triggers the required CI/Test workflows; GitHub suppresses
       # workflow_run for GITHUB_TOKEN pushes to prevent recursion.
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@v3
         id: app-token
         with:
           app-id: ${{ secrets.APP_ID }}
