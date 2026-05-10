@@ -8,3 +8,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    # Bundle all npm bumps into one PR. Each bump regenerates dist/ and
+    # package-lock.json, so separate PRs always conflict and need recreating.
+    groups:
+      npm:
+        patterns: ["*"]
