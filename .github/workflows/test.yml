@@ -1,0 +1,65 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  e2e:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      out-path-ubuntu-latest: ${{ steps.build.outputs.out-path-ubuntu-latest }}
+      out-path-macos-latest: ${{ steps.build.outputs.out-path-macos-latest }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: NixOS/nix-installer-action@main
+      - uses: ./
+        with:
+          server-url: https://niks3.dos.cit.tum.de
+          debug: true
+      # A unique derivation per run so it always rebuilds and the
+      # post-build-hook actually fires.
+      - name: Build a fresh derivation
+        id: build
+        run: |
+          out=$(nix build --impure --no-link --print-out-paths --expr '
+            derivation {
+              name = "niks3-action-test";
+              system = builtins.currentSystem;
+              builder = "/bin/sh";
+              args = [ "-c" "echo ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.os }} > $out" ];
+            }
+          ')
+          echo "out-path-${{ matrix.os }}=$out" >> "$GITHUB_OUTPUT"
+
+  # The post step (drain) runs after the e2e job ends, so we can't probe the
+  # cache from within it. A follow-up job curls the .narinfo.
+  verify:
+    needs: e2e
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Verify path is in the cache
+        run: |
+          out='${{ needs.e2e.outputs[format('out-path-{0}', matrix.os)] }}'
+          hash=$(basename "$out" | cut -c1-32)
+          url="https://cache.dos.cit.tum.de/$hash.narinfo"
+          echo "Checking $url"
+          for i in $(seq 1 30); do
+            if curl -sf "$url" >/dev/null; then
+              echo "Found after ${i}0s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$url not found after 300s"
+          exit 1
