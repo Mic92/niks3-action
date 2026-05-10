@@ -13,7 +13,9 @@ permissions:
   contents: write
 jobs:
   rebuild-dist:
-    if: github.actor == 'dependabot[bot]'
+    # Match the PR author, not github.actor — the latter is whoever
+    # triggered the event (e.g. a maintainer reopening the PR).
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v5
