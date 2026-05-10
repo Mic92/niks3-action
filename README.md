@@ -43,9 +43,7 @@ for server configuration and advanced options.
 | Input | Required | Description |
 |---|---|---|
 | `server-url` | yes | niks3 server URL |
-| `substituter` | no | override the substituter URL (defaults from server) |
-| `public-key` | no | override the trusted public keys (defaults from server) |
-| `audience` | no | override the OIDC audience (defaults from server) |
+| `substituter` | no | override the substituter URL, e.g. a CDN mirror (defaults from server) |
 | `skip-push` | no | configure the substituter only, don't upload |
 | `drain-timeout` | no | seconds to wait for uploads to finish in the post step (default 600) |
 | `niks3-bin` | no | path to a niks3 binary, instead of downloading the release |

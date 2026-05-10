@@ -23007,22 +23007,13 @@ async function setup() {
 }
 async function resolveConfig() {
   const serverURL = getInput("server-url", { required: true });
-  let substituter = getInput("substituter");
-  let publicKeys = getInput("public-key").split(/\s+/).filter(Boolean);
-  let audience = getInput("audience");
-  if (!substituter || publicKeys.length === 0 || !audience) {
-    const fetched = await fetchCacheConfig(serverURL);
-    if (fetched) {
-      substituter ||= fetched.substituter_url;
-      if (publicKeys.length === 0) publicKeys = fetched.public_keys;
-      audience ||= fetched.oidc_audience;
-    }
-  }
+  const fetched = await fetchCacheConfig(serverURL);
+  const substituter = getInput("substituter") || fetched?.substituter_url || "";
   return {
     serverURL,
     substituter,
-    publicKeys,
-    audience,
+    publicKeys: fetched?.public_keys ?? [],
+    audience: fetched?.oidc_audience ?? "",
     skipPush: getBooleanInput("skip-push"),
     debug: getBooleanInput("debug")
   };
@@ -23067,7 +23058,7 @@ async function pickMode(cfg) {
   }
   if (!cfg.audience) {
     warning(
-      `no OIDC audience configured \u2014 set the 'audience' input or configure an OIDC provider with issuer ${GITHUB_ISSUER} on the server`
+      `no OIDC audience configured \u2014 configure an OIDC provider with issuer ${GITHUB_ISSUER} on the server`
     );
     return "none";
   }
