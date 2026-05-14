@@ -189,7 +189,7 @@ function isTrustedUser(): boolean {
   const username = os.userInfo().username
   let trusted: string[]
   try {
-    const out = execFileSync('nix', ['show-config'], { encoding: 'utf8', timeout: 10000 })
+    const out = execFileSync('nix', ['config', 'show'], { encoding: 'utf8', timeout: 10000 })
     const line = out.split('\n').find((l) => l.startsWith('trusted-users = '))
     trusted = line ? line.slice('trusted-users = '.length).trim().split(/\s+/) : []
   } catch {
