@@ -23021,14 +23021,48 @@ async function resolveConfig() {
 async function fetchCacheConfig(serverURL) {
   const u = new URL("/api/cache-config", serverURL);
   u.searchParams.set("issuer", GITHUB_ISSUER);
-  try {
-    const res = await fetch(u, { signal: AbortSignal.timeout(15e3) });
-    if (!res.ok) throw new Error(`server returned ${res.status}`);
-    return await res.json();
-  } catch (err) {
-    warning(`could not fetch cache-config from server: ${err}`);
-    return null;
+  const timeoutMs = positiveIntInput("cache-config-timeout", 15) * 1e3;
+  const retries = positiveIntInput("cache-config-retries", 3);
+  let lastErr;
+  let retryAfterMs = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      const delay = retryAfterMs ?? Math.min(1e3 * 2 ** (attempt - 1), 3e4);
+      info(
+        `retrying cache-config in ${delay / 1e3}s (attempt ${attempt + 1}/${retries + 1})`
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+    retryAfterMs = null;
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs) });
+      if (res.ok) return await res.json();
+      lastErr = new Error(`server returned ${res.status}`);
+      if (res.status < 500 && res.status !== 429) break;
+      retryAfterMs = parseRetryAfter(res.headers.get("retry-after"));
+    } catch (err) {
+      lastErr = err;
+    }
   }
+  warning(`could not fetch cache-config from server: ${lastErr}`);
+  return null;
+}
+function parseRetryAfter(value) {
+  if (!value) return null;
+  const secs = Number(value);
+  if (Number.isFinite(secs) && secs >= 0) return Math.min(secs * 1e3, 6e4);
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return null;
+  return Math.min(Math.max(date - Date.now(), 0), 6e4);
+}
+function positiveIntInput(name, fallback) {
+  const raw = getInput(name);
+  if (raw === "") return fallback;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`input '${name}' must be a non-negative integer, got '${raw}'`);
+  }
+  return n;
 }
 function writeNixConf(workDir, cfg) {
   let body = "";
@@ -23079,7 +23113,7 @@ function isTrustedUser() {
   const username = os7.userInfo().username;
   let trusted;
   try {
-    const out = (0, import_node_child_process.execFileSync)("nix", ["show-config"], { encoding: "utf8", timeout: 1e4 });
+    const out = (0, import_node_child_process.execFileSync)("nix", ["config", "show"], { encoding: "utf8", timeout: 1e4 });
     const line = out.split("\n").find((l) => l.startsWith("trusted-users = "));
     trusted = line ? line.slice("trusted-users = ".length).trim().split(/\s+/) : [];
   } catch {
