@@ -14,8 +14,8 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 // Baked at bundle time via esbuild --define. Matches the git tag and the
-// goreleaser release name so `Mic92/niks3-action@v1.5.0` downloads
-// `niks3_<plat>.tar.gz` from the v1.5.0 release of Mic92/niks3.
+// goreleaser release name so `Mic92/niks3-action@v1.6.0` downloads
+// `niks3_<plat>.tar.gz` from the v1.6.0 release of Mic92/niks3.
 declare const NIKS3_VERSION: string
 
 // GitHub Actions' OIDC issuer — a well-known constant.
