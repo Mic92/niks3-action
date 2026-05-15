@@ -23079,7 +23079,7 @@ function isTrustedUser() {
   const username = os7.userInfo().username;
   let trusted;
   try {
-    const out = (0, import_node_child_process.execFileSync)("nix", ["show-config"], { encoding: "utf8", timeout: 1e4 });
+    const out = (0, import_node_child_process.execFileSync)("nix", ["config", "show"], { encoding: "utf8", timeout: 1e4 });
     const line = out.split("\n").find((l) => l.startsWith("trusted-users = "));
     trusted = line ? line.slice("trusted-users = ".length).trim().split(/\s+/) : [];
   } catch {
