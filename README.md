@@ -45,6 +45,8 @@ for server configuration and advanced options.
 | `server-url` | yes | niks3 server URL |
 | `substituter` | no | override the substituter URL, e.g. a CDN mirror (defaults from server) |
 | `skip-push` | no | configure the substituter only, don't upload |
+| `cache-config-timeout` | no | seconds before each /api/cache-config request times out (default 15) |
+| `cache-config-retries` | no | extra attempts to fetch /api/cache-config after a transient failure (default 3) |
 | `drain-timeout` | no | seconds to wait for uploads to finish in the post step (default 600) |
 | `niks3-bin` | no | path to a niks3 binary, instead of downloading the release |
 | `debug` | no | enable debug logging |

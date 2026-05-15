@@ -106,14 +106,53 @@ async function fetchCacheConfig(serverURL: string): Promise<CacheConfig | null> 
   const u = new URL('/api/cache-config', serverURL)
   u.searchParams.set('issuer', GITHUB_ISSUER)
 
-  try {
-    const res = await fetch(u, { signal: AbortSignal.timeout(15000) })
-    if (!res.ok) throw new Error(`server returned ${res.status}`)
-    return (await res.json()) as CacheConfig
-  } catch (err) {
-    core.warning(`could not fetch cache-config from server: ${err}`)
-    return null
+  // Configurable so slow-to-start servers have time to boot.
+  const timeoutMs = positiveIntInput('cache-config-timeout', 15) * 1000
+  const retries = positiveIntInput('cache-config-retries', 3)
+
+  let lastErr: unknown
+  let retryAfterMs: number | null = null
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      const delay = retryAfterMs ?? Math.min(1000 * 2 ** (attempt - 1), 30000)
+      core.info(
+        `retrying cache-config in ${delay / 1000}s (attempt ${attempt + 1}/${retries + 1})`,
+      )
+      await new Promise((r) => setTimeout(r, delay))
+    }
+    retryAfterMs = null
+    try {
+      const res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs) })
+      if (res.ok) return (await res.json()) as CacheConfig
+      lastErr = new Error(`server returned ${res.status}`)
+      // Client errors (except 429) won't resolve on retry.
+      if (res.status < 500 && res.status !== 429) break
+      retryAfterMs = parseRetryAfter(res.headers.get('retry-after'))
+    } catch (err) {
+      lastErr = err
+    }
   }
+  core.warning(`could not fetch cache-config from server: ${lastErr}`)
+  return null
+}
+
+function parseRetryAfter(value: string | null): number | null {
+  if (!value) return null
+  const secs = Number(value)
+  if (Number.isFinite(secs) && secs >= 0) return Math.min(secs * 1000, 60000)
+  const date = Date.parse(value)
+  if (Number.isNaN(date)) return null
+  return Math.min(Math.max(date - Date.now(), 0), 60000)
+}
+
+function positiveIntInput(name: string, fallback: number): number {
+  const raw = core.getInput(name)
+  if (raw === '') return fallback
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`input '${name}' must be a non-negative integer, got '${raw}'`)
+  }
+  return n
 }
 
 // writeNixConf drops a nix.conf snippet and registers it via

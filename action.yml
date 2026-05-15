@@ -21,6 +21,14 @@ inputs:
     description: >-
       Path to a niks3 binary. Defaults to downloading the pinned niks3 release.
     required: false
+  cache-config-timeout:
+    description: >-
+      Seconds to wait for each /api/cache-config request before timing out.
+    default: '15'
+  cache-config-retries:
+    description: >-
+      Number of additional attempts to fetch /api/cache-config after a transient failure (network error, timeout, or 5xx).
+    default: '3'
   drain-timeout:
     description: >-
       Seconds to wait for the upload daemon to drain in the post step.
