@@ -23179,7 +23179,7 @@ process.stdout.write(JSON.stringify(out))
 `,
     { mode: 384 }
   );
-  return `node ${file}`;
+  return `${process.execPath} ${file}`;
 }
 function writeStoreSnapshot(file) {
   fs4.writeFileSync(file, listStorePaths().join("\n") + "\n");
