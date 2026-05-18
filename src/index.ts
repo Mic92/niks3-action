@@ -313,7 +313,7 @@ process.stdout.write(JSON.stringify(out))
     { mode: 0o600 },
   )
 
-  return `node ${file}`
+  return `${process.execPath} ${file}`
 }
 
 // writeStoreSnapshot lists store paths one-per-line. Used in storescan mode.
