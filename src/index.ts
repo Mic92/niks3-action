@@ -104,7 +104,14 @@ async function resolveConfig(): Promise<ResolvedConfig> {
 
 async function fetchCacheConfig(serverURL: string): Promise<CacheConfig | null> {
   const u = new URL('/api/cache-config', serverURL)
-  u.searchParams.set('issuer', GITHUB_ISSUER)
+
+  if (process.env.FORGEJO_SERVER_URL) {
+    // Forgejo's OIDC issuer URL
+    // https://forgejo.org/docs/next/user/actions/security-openid-connect/#standard-claims
+    u.searchParams.set('issuer', `${process.env.FORGEJO_SERVER_URL}/api/actions`)
+  } else {
+    u.searchParams.set('issuer', GITHUB_ISSUER)
+  }
 
   // Configurable so slow-to-start servers have time to boot.
   const timeoutMs = positiveIntInput('cache-config-timeout', 15) * 1000
@@ -415,10 +422,24 @@ function stopDaemon(): void {
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0)
-    return true
-  } catch {
-    return false
+  } catch (err) {
+    // EPERM means "exists, but you cannot signal it".
+    if ((err as NodeJS.ErrnoException).code !== 'EPERM') return false
   }
+
+  if (process.platform === 'linux') {
+    try {
+      const status = fs.readFileSync(`/proc/${pid}/status`, 'utf8')
+      const state = /^State:\s+([A-Z])/m.exec(status)?.[1]
+
+      return state !== 'Z' && state !== 'X'
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+      throw err
+    }
+  }
+
+  return true
 }
 
 function sleepSync(ms: number): void {

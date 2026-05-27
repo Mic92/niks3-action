@@ -23024,7 +23024,11 @@ async function resolveConfig() {
 }
 async function fetchCacheConfig(serverURL) {
   const u = new URL("/api/cache-config", serverURL);
-  u.searchParams.set("issuer", GITHUB_ISSUER);
+  if (process.env.FORGEJO_SERVER_URL) {
+    u.searchParams.set("issuer", `${process.env.FORGEJO_SERVER_URL}/api/actions`);
+  } else {
+    u.searchParams.set("issuer", GITHUB_ISSUER);
+  }
   const timeoutMs = positiveIntInput("cache-config-timeout", 15) * 1e3;
   const retries = positiveIntInput("cache-config-retries", 3);
   let lastErr;
@@ -23251,10 +23255,20 @@ function stopDaemon() {
 function alive(pid) {
   try {
     process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
+  } catch (err) {
+    if (err.code !== "EPERM") return false;
   }
+  if (process.platform === "linux") {
+    try {
+      const status = fs4.readFileSync(`/proc/${pid}/status`, "utf8");
+      const state = /^State:\s+([A-Z])/m.exec(status)?.[1];
+      return state !== "Z" && state !== "X";
+    } catch (err) {
+      if (err.code === "ENOENT") return false;
+      throw err;
+    }
+  }
+  return true;
 }
 function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
