@@ -10,6 +10,7 @@ import * as core from '@actions/core'
 import * as tc from '@actions/tool-cache'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
+import * as net from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
@@ -302,6 +303,7 @@ function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void
 
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
   core.saveState('daemonPid', String(child.pid))
+  core.saveState('daemonSocket', socket)
   core.saveState('daemonLog', logPath)
 }
 
@@ -367,7 +369,7 @@ async function post(): Promise<void> {
 
   switch (mode) {
     case 'daemon':
-      stopDaemon()
+      await stopDaemon()
       break
     case 'storescan':
       pushStoreDiff()
@@ -379,10 +381,13 @@ async function post(): Promise<void> {
 }
 
 // stopDaemon SIGTERMs the niks3-hook daemon and waits for it to drain.
-function stopDaemon(): void {
+// Liveness is probed via the unix socket because kill(pid, 0) also
+// succeeds on an unreaped zombie (#18).
+async function stopDaemon(): Promise<void> {
   const pid = parseInt(core.getState('daemonPid') || '0', 10)
-  if (!pid) {
-    core.warning('niks3-hook daemon pid not recorded; nothing to stop')
+  const socket = core.getState('daemonSocket')
+  if (!pid || !socket) {
+    core.warning('niks3-hook daemon pid/socket not recorded; nothing to stop')
     return
   }
 
@@ -399,7 +404,7 @@ function stopDaemon(): void {
   const deadline = Date.now() + timeoutSec * 1000
   let lastBeat = Date.now()
   while (Date.now() < deadline) {
-    if (!alive(pid)) {
+    if (!(await socketAlive(socket))) {
       core.notice('niks3: upload daemon drained')
       return
     }
@@ -408,7 +413,7 @@ function stopDaemon(): void {
       core.info('waiting for upload daemon to drain...')
       lastBeat = Date.now()
     }
-    sleepSync(500)
+    await sleep(500)
   }
 
   core.warning(`niks3-hook daemon did not drain within ${timeoutSec}s; killing (log: ${logPath})`)
@@ -419,33 +424,20 @@ function stopDaemon(): void {
   }
 }
 
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-  } catch (err) {
-    // EPERM means "exists, but you cannot signal it".
-    if ((err as NodeJS.ErrnoException).code !== 'EPERM') return false
-  }
-
-  if (process.platform === 'linux') {
-    try {
-      const status = fs.readFileSync(`/proc/${pid}/status`, 'utf8')
-      const state = /^State:\s+([A-Z])/m.exec(status)?.[1]
-
-      return state !== 'Z' && state !== 'X'
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
-      throw err
-    }
-  }
-
-  return true
+// socketAlive reports whether the daemon still accepts connections.
+function socketAlive(socket: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const conn = net.connect(socket)
+    conn.once('connect', () => {
+      conn.destroy()
+      resolve(true)
+    })
+    conn.once('error', () => resolve(false))
+  })
 }
 
-function sleepSync(ms: number): void {
-  // Atomics.wait blocks without busy-looping. SharedArrayBuffer is always
-  // available in Node.
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 // pushStoreDiff lists store paths added since setup's snapshot and pushes
