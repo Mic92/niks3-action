@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 permissions:
   id-token: write
@@ -47,6 +48,10 @@ jobs:
   # cache from within it. A follow-up job curls the .narinfo.
   verify:
     needs: e2e
+    # Fork PRs get no OIDC token, so nothing is pushed and the cache probe
+    # would always fail. The merge queue runs in the base repo with a token,
+    # so the real round-trip is still verified before merge.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     strategy:
       matrix:
