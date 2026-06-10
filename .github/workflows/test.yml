@@ -1,7 +1,7 @@
 name: Test
 on:
   push:
-    branches: [main]
+    branches: [main, 'gitea-mq/**']
   pull_request:
 
 permissions:
@@ -47,6 +47,11 @@ jobs:
   # cache from within it. A follow-up job curls the .narinfo.
   verify:
     needs: e2e
+    # Fork PRs get no OIDC token, so nothing is pushed and the cache probe
+    # would always fail. gitea-mq pushes the merge branch to the base repo
+    # (gitea-mq/<pr>), where the token exists, so the real round-trip is
+    # still verified before merge.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     strategy:
       matrix:

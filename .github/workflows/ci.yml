@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, 'gitea-mq/**']
   pull_request:
 
 jobs:
