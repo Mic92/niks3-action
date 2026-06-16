@@ -284,6 +284,15 @@ function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void
 
   if (!child.pid) throw new Error('failed to start niks3-hook serve: no pid')
 
+  // serve binds the socket late (after sqlite + `nix eval`); send swallows
+  // connect errors. Block until the socket exists so fast builds aren't lost.
+  const deadline = Date.now() + 10000
+  while (!fs.existsSync(socket)) {
+    if (!alive(child.pid)) throw new Error('niks3-hook serve exited before binding socket')
+    if (Date.now() > deadline) throw new Error(`niks3-hook serve did not bind ${socket} within 10s`)
+    sleepSync(50)
+  }
+
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
   core.saveState('daemonPid', String(child.pid))
   core.saveState('daemonLog', logPath)
