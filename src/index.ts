@@ -66,7 +66,7 @@ async function setup(): Promise<void> {
 
   switch (mode) {
     case 'daemon':
-      startDaemon(binDir, workDir, cfg)
+      await startDaemon(binDir, workDir, cfg)
       break
     case 'storescan':
       writeStoreSnapshot(path.join(workDir, 'store-pre'))
@@ -249,7 +249,7 @@ function isTrustedUser(): boolean {
 // startDaemon writes the post-build-hook shim, the OIDC token script, and
 // forks `niks3-hook serve` detached in its own process group so the runner's
 // step-end cleanup doesn't take it down early.
-function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void {
+async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): Promise<void> {
   const hookBin = path.join(binDir, 'niks3-hook')
   const socket = socketPath(workDir)
   const tokenScript = writeTokenScript(workDir, cfg.audience)
@@ -296,9 +296,9 @@ function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void
   // connect errors. Block until the socket exists so fast builds aren't lost.
   const deadline = Date.now() + 10000
   while (!fs.existsSync(socket)) {
-    if (!alive(child.pid)) throw new Error('niks3-hook serve exited before binding socket')
+    try { process.kill(child.pid, 0) } catch { throw new Error('niks3-hook serve exited before binding socket') }
     if (Date.now() > deadline) throw new Error(`niks3-hook serve did not bind ${socket} within 10s`)
-    sleepSync(50)
+    await sleep(50)
   }
 
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)

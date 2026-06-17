@@ -22995,7 +22995,7 @@ async function setup() {
   info(`Push mode: ${mode}`);
   switch (mode) {
     case "daemon":
-      startDaemon(binDir, workDir, cfg);
+      await startDaemon(binDir, workDir, cfg);
       break;
     case "storescan":
       writeStoreSnapshot(path5.join(workDir, "store-pre"));
@@ -23130,7 +23130,7 @@ function isTrustedUser() {
   }
   return trusted.includes(username) || trusted.includes("*");
 }
-function startDaemon(binDir, workDir, cfg) {
+async function startDaemon(binDir, workDir, cfg) {
   const hookBin = path5.join(binDir, "niks3-hook");
   const socket = socketPath(workDir);
   const tokenScript = writeTokenScript(workDir, cfg.audience);
@@ -23168,9 +23168,13 @@ exec ${q(hookBin)} send --socket ${q(socket)}
   if (!child2.pid) throw new Error("failed to start niks3-hook serve: no pid");
   const deadline = Date.now() + 1e4;
   while (!fs4.existsSync(socket)) {
-    if (!alive(child2.pid)) throw new Error("niks3-hook serve exited before binding socket");
+    try {
+      process.kill(child2.pid, 0);
+    } catch {
+      throw new Error("niks3-hook serve exited before binding socket");
+    }
     if (Date.now() > deadline) throw new Error(`niks3-hook serve did not bind ${socket} within 10s`);
-    sleepSync(50);
+    await sleep(50);
   }
   info(`niks3-hook serve started (pid ${child2.pid}, socket ${socket})`);
   saveState("daemonPid", String(child2.pid));
