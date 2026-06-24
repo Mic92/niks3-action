@@ -23298,16 +23298,16 @@ async function resolveBinDir() {
     return path5.dirname(override);
   }
   const plat = platformTuple();
-  const cached = find("niks3", "v1.6.0", plat);
+  const cached = find("niks3", "v1.6.1", plat);
   if (cached) {
-    info(`Found cached niks3 ${"v1.6.0"} (${plat})`);
+    info(`Found cached niks3 ${"v1.6.1"} (${plat})`);
     return cached;
   }
-  const url = `https://github.com/Mic92/niks3/releases/download/${"v1.6.0"}/niks3_${plat}.tar.gz`;
-  info(`Downloading niks3 ${"v1.6.0"} from ${url}`);
+  const url = `https://github.com/Mic92/niks3/releases/download/${"v1.6.1"}/niks3_${plat}.tar.gz`;
+  info(`Downloading niks3 ${"v1.6.1"} from ${url}`);
   const tarball = await downloadTool(url);
   const extracted = await extractTar(tarball);
-  return cacheDir(extracted, "niks3", "v1.6.0", plat);
+  return cacheDir(extracted, "niks3", "v1.6.1", plat);
 }
 function platformTuple() {
   const sys = { linux: "Linux", darwin: "Darwin" };
