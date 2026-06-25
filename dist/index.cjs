@@ -22994,7 +22994,7 @@ async function setup() {
   info(`Push mode: ${mode}`);
   switch (mode) {
     case "daemon":
-      startDaemon(binDir, workDir, cfg);
+      await startDaemon(binDir, workDir, cfg);
       break;
     case "storescan":
       writeStoreSnapshot(path5.join(workDir, "store-pre"));
@@ -23024,7 +23024,11 @@ async function resolveConfig() {
 }
 async function fetchCacheConfig(serverURL) {
   const u = new URL("/api/cache-config", serverURL);
-  u.searchParams.set("issuer", GITHUB_ISSUER);
+  if (process.env.FORGEJO_SERVER_URL) {
+    u.searchParams.set("issuer", `${process.env.FORGEJO_SERVER_URL}/api/actions`);
+  } else {
+    u.searchParams.set("issuer", GITHUB_ISSUER);
+  }
   const timeoutMs = positiveIntInput("cache-config-timeout", 15) * 1e3;
   const retries = positiveIntInput("cache-config-retries", 3);
   let lastErr;
@@ -23125,7 +23129,7 @@ function isTrustedUser() {
   }
   return trusted.includes(username) || trusted.includes("*");
 }
-function startDaemon(binDir, workDir, cfg) {
+async function startDaemon(binDir, workDir, cfg) {
   const hookBin = path5.join(binDir, "niks3-hook");
   const socket = socketPath(workDir);
   const tokenScript = writeTokenScript(workDir, cfg.audience);
@@ -23163,9 +23167,13 @@ exec ${q(hookBin)} send --socket ${q(socket)}
   if (!child2.pid) throw new Error("failed to start niks3-hook serve: no pid");
   const deadline = Date.now() + 1e4;
   while (!fs4.existsSync(socket)) {
-    if (!alive(child2.pid)) throw new Error("niks3-hook serve exited before binding socket");
+    try {
+      process.kill(child2.pid, 0);
+    } catch {
+      throw new Error("niks3-hook serve exited before binding socket");
+    }
     if (Date.now() > deadline) throw new Error(`niks3-hook serve did not bind ${socket} within 10s`);
-    sleepSync(50);
+    await sleep(50);
   }
   info(`niks3-hook serve started (pid ${child2.pid}, socket ${socket})`);
   saveState("daemonPid", String(child2.pid));
@@ -23207,7 +23215,7 @@ async function post() {
   const mode = getState("mode");
   switch (mode) {
     case "daemon":
-      stopDaemon();
+      await stopDaemon();
       break;
     case "storescan":
       pushStoreDiff();
@@ -23216,7 +23224,7 @@ async function post() {
       break;
   }
 }
-function stopDaemon() {
+async function stopDaemon() {
   const pid = parseInt(getState("daemonPid") || "0", 10);
   if (!pid) {
     warning("niks3-hook daemon pid not recorded; nothing to stop");
@@ -23240,7 +23248,7 @@ function stopDaemon() {
       info("waiting for upload daemon to drain...");
       lastBeat = Date.now();
     }
-    sleepSync(500);
+    await sleep(500);
   }
   warning(`niks3-hook daemon did not drain within ${timeoutSec}s; killing (log: ${logPath})`);
   try {
@@ -23251,13 +23259,22 @@ function stopDaemon() {
 function alive(pid) {
   try {
     process.kill(pid, 0);
-    return true;
   } catch {
     return false;
   }
+  if (process.platform === "linux") {
+    try {
+      const stat2 = fs4.readFileSync(`/proc/${pid}/stat`, "utf8");
+      const state = stat2.slice(stat2.lastIndexOf(")") + 2, stat2.lastIndexOf(")") + 3);
+      if (state === "Z") return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+function sleep(ms) {
+  return new Promise((resolve2) => setTimeout(resolve2, ms));
 }
 function pushStoreDiff() {
   const workDir = getState("workDir");

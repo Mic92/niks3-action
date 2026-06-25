@@ -65,7 +65,7 @@ async function setup(): Promise<void> {
 
   switch (mode) {
     case 'daemon':
-      startDaemon(binDir, workDir, cfg)
+      await startDaemon(binDir, workDir, cfg)
       break
     case 'storescan':
       writeStoreSnapshot(path.join(workDir, 'store-pre'))
@@ -104,7 +104,14 @@ async function resolveConfig(): Promise<ResolvedConfig> {
 
 async function fetchCacheConfig(serverURL: string): Promise<CacheConfig | null> {
   const u = new URL('/api/cache-config', serverURL)
-  u.searchParams.set('issuer', GITHUB_ISSUER)
+
+  if (process.env.FORGEJO_SERVER_URL) {
+    // Forgejo's OIDC issuer URL
+    // https://forgejo.org/docs/next/user/actions/security-openid-connect/#standard-claims
+    u.searchParams.set('issuer', `${process.env.FORGEJO_SERVER_URL}/api/actions`)
+  } else {
+    u.searchParams.set('issuer', GITHUB_ISSUER)
+  }
 
   // Configurable so slow-to-start servers have time to boot.
   const timeoutMs = positiveIntInput('cache-config-timeout', 15) * 1000
@@ -241,7 +248,7 @@ function isTrustedUser(): boolean {
 // startDaemon writes the post-build-hook shim, the OIDC token script, and
 // forks `niks3-hook serve` detached in its own process group so the runner's
 // step-end cleanup doesn't take it down early.
-function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void {
+async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): Promise<void> {
   const hookBin = path.join(binDir, 'niks3-hook')
   const socket = socketPath(workDir)
   const tokenScript = writeTokenScript(workDir, cfg.audience)
@@ -288,9 +295,9 @@ function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): void
   // connect errors. Block until the socket exists so fast builds aren't lost.
   const deadline = Date.now() + 10000
   while (!fs.existsSync(socket)) {
-    if (!alive(child.pid)) throw new Error('niks3-hook serve exited before binding socket')
+    try { process.kill(child.pid, 0) } catch { throw new Error('niks3-hook serve exited before binding socket') }
     if (Date.now() > deadline) throw new Error(`niks3-hook serve did not bind ${socket} within 10s`)
-    sleepSync(50)
+    await sleep(50)
   }
 
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
@@ -360,7 +367,7 @@ async function post(): Promise<void> {
 
   switch (mode) {
     case 'daemon':
-      stopDaemon()
+      await stopDaemon()
       break
     case 'storescan':
       pushStoreDiff()
@@ -372,7 +379,7 @@ async function post(): Promise<void> {
 }
 
 // stopDaemon SIGTERMs the niks3-hook daemon and waits for it to drain.
-function stopDaemon(): void {
+async function stopDaemon(): Promise<void> {
   const pid = parseInt(core.getState('daemonPid') || '0', 10)
   if (!pid) {
     core.warning('niks3-hook daemon pid not recorded; nothing to stop')
@@ -401,7 +408,7 @@ function stopDaemon(): void {
       core.info('waiting for upload daemon to drain...')
       lastBeat = Date.now()
     }
-    sleepSync(500)
+    await sleep(500)
   }
 
   core.warning(`niks3-hook daemon did not drain within ${timeoutSec}s; killing (log: ${logPath})`)
@@ -412,19 +419,31 @@ function stopDaemon(): void {
   }
 }
 
+// alive reports whether pid is still running. kill(pid, 0) alone is
+// insufficient: it succeeds for unreaped zombies, which occur on container
+// runners whose PID 1 is not a reaping init (act/Forgejo docker, #18).
 function alive(pid: number): boolean {
   try {
     process.kill(pid, 0)
-    return true
   } catch {
     return false
   }
+  if (process.platform === 'linux') {
+    try {
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8')
+      // /proc/pid/stat: "pid (comm) S ..." — comm may contain ')', so the
+      // state char is the first char after the last ')'.
+      const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3)
+      if (state === 'Z') return false
+    } catch {
+      return false // raced with exit
+    }
+  }
+  return true
 }
 
-function sleepSync(ms: number): void {
-  // Atomics.wait blocks without busy-looping. SharedArrayBuffer is always
-  // available in Node.
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 // pushStoreDiff lists store paths added since setup's snapshot and pushes
