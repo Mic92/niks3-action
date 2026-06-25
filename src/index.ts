@@ -10,7 +10,6 @@ import * as core from '@actions/core'
 import * as tc from '@actions/tool-cache'
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
-import * as net from 'node:net'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
@@ -303,7 +302,6 @@ async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig)
 
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
   core.saveState('daemonPid', String(child.pid))
-  core.saveState('daemonSocket', socket)
   core.saveState('daemonLog', logPath)
 }
 
@@ -381,13 +379,10 @@ async function post(): Promise<void> {
 }
 
 // stopDaemon SIGTERMs the niks3-hook daemon and waits for it to drain.
-// Liveness is probed via the unix socket because kill(pid, 0) also
-// succeeds on an unreaped zombie (#18).
 async function stopDaemon(): Promise<void> {
   const pid = parseInt(core.getState('daemonPid') || '0', 10)
-  const socket = core.getState('daemonSocket')
-  if (!pid || !socket) {
-    core.warning('niks3-hook daemon pid/socket not recorded; nothing to stop')
+  if (!pid) {
+    core.warning('niks3-hook daemon pid not recorded; nothing to stop')
     return
   }
 
@@ -404,7 +399,7 @@ async function stopDaemon(): Promise<void> {
   const deadline = Date.now() + timeoutSec * 1000
   let lastBeat = Date.now()
   while (Date.now() < deadline) {
-    if (!(await socketAlive(socket))) {
+    if (!alive(pid)) {
       core.notice('niks3: upload daemon drained')
       return
     }
@@ -424,16 +419,27 @@ async function stopDaemon(): Promise<void> {
   }
 }
 
-// socketAlive reports whether the daemon still accepts connections.
-function socketAlive(socket: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const conn = net.connect(socket)
-    conn.once('connect', () => {
-      conn.destroy()
-      resolve(true)
-    })
-    conn.once('error', () => resolve(false))
-  })
+// alive reports whether pid is still running. kill(pid, 0) alone is
+// insufficient: it succeeds for unreaped zombies, which occur on container
+// runners whose PID 1 is not a reaping init (act/Forgejo docker, #18).
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+  } catch {
+    return false
+  }
+  if (process.platform === 'linux') {
+    try {
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8')
+      // /proc/pid/stat: "pid (comm) S ..." — comm may contain ')', so the
+      // state char is the first char after the last ')'.
+      const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3)
+      if (state === 'Z') return false
+    } catch {
+      return false // raced with exit
+    }
+  }
+  return true
 }
 
 function sleep(ms: number): Promise<void> {

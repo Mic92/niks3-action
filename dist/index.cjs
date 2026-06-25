@@ -33,7 +33,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 var require_tunnel = __commonJS({
   "node_modules/tunnel/lib/tunnel.js"(exports2) {
     "use strict";
-    var net2 = require("net");
+    var net = require("net");
     var tls = require("tls");
     var http2 = require("http");
     var https2 = require("https");
@@ -960,7 +960,7 @@ var require_util = __commonJS({
     var { kDestroyed, kBodyUsed, kListeners, kBody } = require_symbols();
     var { IncomingMessage } = require("node:http");
     var stream2 = require("node:stream");
-    var net2 = require("node:net");
+    var net = require("node:net");
     var { Blob: Blob2 } = require("node:buffer");
     var nodeUtil = require("node:util");
     var { stringify } = require("node:querystring");
@@ -1105,7 +1105,7 @@ var require_util = __commonJS({
       }
       assert(typeof host === "string");
       const servername = getHostname(host);
-      if (net2.isIP(servername)) {
+      if (net.isIP(servername)) {
         return "";
       }
       return servername;
@@ -2434,7 +2434,7 @@ var require_timers = __commonJS({
 var require_connect = __commonJS({
   "node_modules/undici/lib/core/connect.js"(exports2, module2) {
     "use strict";
-    var net2 = require("node:net");
+    var net = require("node:net");
     var assert = require("node:assert");
     var util2 = require_util();
     var { InvalidArgumentError, ConnectTimeoutError } = require_errors();
@@ -2499,7 +2499,7 @@ var require_connect = __commonJS({
       const sessionCache = new SessionCache(maxCachedSessions == null ? 100 : maxCachedSessions);
       timeout = timeout == null ? 1e4 : timeout;
       allowH2 = allowH2 != null ? allowH2 : false;
-      return function connect2({ hostname, host, protocol, port, servername, localAddress, httpSocket }, callback) {
+      return function connect({ hostname, host, protocol, port, servername, localAddress, httpSocket }, callback) {
         let socket;
         if (protocol === "https:") {
           if (!tls) {
@@ -2530,7 +2530,7 @@ var require_connect = __commonJS({
         } else {
           assert(!httpSocket, "httpSocket can only be sent on TLS update");
           port = port || 80;
-          socket = net2.connect({
+          socket = net.connect({
             highWaterMark: 64 * 1024,
             // Same as nodejs fs streams.
             ...options,
@@ -7400,7 +7400,7 @@ var require_client = __commonJS({
   "node_modules/undici/lib/dispatcher/client.js"(exports2, module2) {
     "use strict";
     var assert = require("node:assert");
-    var net2 = require("node:net");
+    var net = require("node:net");
     var http2 = require("node:http");
     var util2 = require_util();
     var { channels } = require_diagnostics();
@@ -7489,7 +7489,7 @@ var require_client = __commonJS({
         strictContentLength,
         maxCachedSessions,
         maxRedirections,
-        connect: connect3,
+        connect: connect2,
         maxRequestsPerClient,
         localAddress,
         maxResponseSize,
@@ -7540,7 +7540,7 @@ var require_client = __commonJS({
         if (bodyTimeout != null && (!Number.isInteger(bodyTimeout) || bodyTimeout < 0)) {
           throw new InvalidArgumentError("bodyTimeout must be a positive integer or zero");
         }
-        if (connect3 != null && typeof connect3 !== "function" && typeof connect3 !== "object") {
+        if (connect2 != null && typeof connect2 !== "function" && typeof connect2 !== "object") {
           throw new InvalidArgumentError("connect must be a function or an object");
         }
         if (maxRedirections != null && (!Number.isInteger(maxRedirections) || maxRedirections < 0)) {
@@ -7549,7 +7549,7 @@ var require_client = __commonJS({
         if (maxRequestsPerClient != null && (!Number.isInteger(maxRequestsPerClient) || maxRequestsPerClient < 0)) {
           throw new InvalidArgumentError("maxRequestsPerClient must be a positive number");
         }
-        if (localAddress != null && (typeof localAddress !== "string" || net2.isIP(localAddress) === 0)) {
+        if (localAddress != null && (typeof localAddress !== "string" || net.isIP(localAddress) === 0)) {
           throw new InvalidArgumentError("localAddress must be valid string IP address");
         }
         if (maxResponseSize != null && (!Number.isInteger(maxResponseSize) || maxResponseSize < -1)) {
@@ -7564,15 +7564,15 @@ var require_client = __commonJS({
         if (maxConcurrentStreams != null && (typeof maxConcurrentStreams !== "number" || maxConcurrentStreams < 1)) {
           throw new InvalidArgumentError("maxConcurrentStreams must be a positive integer, greater than 0");
         }
-        if (typeof connect3 !== "function") {
-          connect3 = buildConnector({
+        if (typeof connect2 !== "function") {
+          connect2 = buildConnector({
             ...tls,
             maxCachedSessions,
             allowH2,
             socketPath: socketPath2,
             timeout: connectTimeout,
             ...autoSelectFamily ? { autoSelectFamily, autoSelectFamilyAttemptTimeout } : void 0,
-            ...connect3
+            ...connect2
           });
         }
         if (interceptors?.Client && Array.isArray(interceptors.Client)) {
@@ -7587,7 +7587,7 @@ var require_client = __commonJS({
           this[kInterceptors] = [createRedirectInterceptor({ maxRedirections })];
         }
         this[kUrl] = util2.parseOrigin(url);
-        this[kConnector] = connect3;
+        this[kConnector] = connect2;
         this[kPipelining] = pipelining != null ? pipelining : 1;
         this[kMaxHeadersSize] = maxHeaderSize || http2.maxHeaderSize;
         this[kKeepAliveDefaultTimeout] = keepAliveTimeout == null ? 4e3 : keepAliveTimeout;
@@ -7641,7 +7641,7 @@ var require_client = __commonJS({
       }
       /* istanbul ignore: only used for test */
       [kConnect](cb) {
-        connect2(this);
+        connect(this);
         this.once("connect", cb);
       }
       [kDispatch](opts, handler) {
@@ -7705,7 +7705,7 @@ var require_client = __commonJS({
         assert(client[kSize] === 0);
       }
     }
-    async function connect2(client) {
+    async function connect(client) {
       assert(!client[kConnecting]);
       assert(!client[kHTTPContext]);
       let { host, hostname, protocol, port } = client[kUrl];
@@ -7713,7 +7713,7 @@ var require_client = __commonJS({
         const idx = hostname.indexOf("]");
         assert(idx !== -1);
         const ip = hostname.substring(1, idx);
-        assert(net2.isIP(ip));
+        assert(net.isIP(ip));
         hostname = ip;
       }
       client[kConnecting] = true;
@@ -7876,7 +7876,7 @@ var require_client = __commonJS({
           return;
         }
         if (!client[kHTTPContext]) {
-          connect2(client);
+          connect(client);
           return;
         }
         if (client[kHTTPContext].destroyed) {
@@ -8168,7 +8168,7 @@ var require_pool = __commonJS({
       constructor(origin, {
         connections,
         factory = defaultFactory,
-        connect: connect2,
+        connect,
         connectTimeout,
         tls,
         maxCachedSessions,
@@ -8184,25 +8184,25 @@ var require_pool = __commonJS({
         if (typeof factory !== "function") {
           throw new InvalidArgumentError("factory must be a function.");
         }
-        if (connect2 != null && typeof connect2 !== "function" && typeof connect2 !== "object") {
+        if (connect != null && typeof connect !== "function" && typeof connect !== "object") {
           throw new InvalidArgumentError("connect must be a function or an object");
         }
-        if (typeof connect2 !== "function") {
-          connect2 = buildConnector({
+        if (typeof connect !== "function") {
+          connect = buildConnector({
             ...tls,
             maxCachedSessions,
             allowH2,
             socketPath: socketPath2,
             timeout: connectTimeout,
             ...autoSelectFamily ? { autoSelectFamily, autoSelectFamilyAttemptTimeout } : void 0,
-            ...connect2
+            ...connect
           });
         }
         super(options);
         this[kInterceptors] = options.interceptors?.Pool && Array.isArray(options.interceptors.Pool) ? options.interceptors.Pool : [];
         this[kConnections] = connections || null;
         this[kUrl] = util2.parseOrigin(origin);
-        this[kOptions] = { ...util2.deepClone(options), connect: connect2, allowH2 };
+        this[kOptions] = { ...util2.deepClone(options), connect, allowH2 };
         this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kFactory] = factory;
         this.on("connectionError", (origin2, targets, error2) => {
@@ -8397,22 +8397,22 @@ var require_agent = __commonJS({
       return opts && opts.connections === 1 ? new Client(origin, opts) : new Pool(origin, opts);
     }
     var Agent3 = class extends DispatcherBase {
-      constructor({ factory = defaultFactory, maxRedirections = 0, connect: connect2, ...options } = {}) {
+      constructor({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
         if (typeof factory !== "function") {
           throw new InvalidArgumentError("factory must be a function.");
         }
-        if (connect2 != null && typeof connect2 !== "function" && typeof connect2 !== "object") {
+        if (connect != null && typeof connect !== "function" && typeof connect !== "object") {
           throw new InvalidArgumentError("connect must be a function or an object");
         }
         if (!Number.isInteger(maxRedirections) || maxRedirections < 0) {
           throw new InvalidArgumentError("maxRedirections must be a positive number");
         }
         super(options);
-        if (connect2 && typeof connect2 !== "function") {
-          connect2 = { ...connect2 };
+        if (connect && typeof connect !== "function") {
+          connect = { ...connect };
         }
         this[kInterceptors] = options.interceptors?.Agent && Array.isArray(options.interceptors.Agent) ? options.interceptors.Agent : [createRedirectInterceptor({ maxRedirections })];
-        this[kOptions] = { ...util2.deepClone(options), connect: connect2 };
+        this[kOptions] = { ...util2.deepClone(options), connect };
         this[kOptions].interceptors = options.interceptors ? { ...options.interceptors } : void 0;
         this[kMaxRedirections] = maxRedirections;
         this[kFactory] = factory;
@@ -8507,16 +8507,16 @@ var require_proxy_agent = __commonJS({
     }
     var Http1ProxyWrapper = class extends DispatcherBase {
       #client;
-      constructor(proxyUrl, { headers = {}, connect: connect2, factory }) {
+      constructor(proxyUrl, { headers = {}, connect, factory }) {
         super();
         if (!proxyUrl) {
           throw new InvalidArgumentError("Proxy URL is mandatory");
         }
         this[kProxyHeaders] = headers;
         if (factory) {
-          this.#client = factory(proxyUrl, { connect: connect2 });
+          this.#client = factory(proxyUrl, { connect });
         } else {
-          this.#client = new Client(proxyUrl, { connect: connect2 });
+          this.#client = new Client(proxyUrl, { connect });
         }
       }
       [kDispatch](opts, handler) {
@@ -8578,7 +8578,7 @@ var require_proxy_agent = __commonJS({
         } else if (username && password) {
           this[kProxyHeaders]["proxy-authorization"] = `Basic ${Buffer.from(`${decodeURIComponent(username)}:${decodeURIComponent(password)}`).toString("base64")}`;
         }
-        const connect2 = buildConnector({ ...opts.proxyTls });
+        const connect = buildConnector({ ...opts.proxyTls });
         this[kConnectEndpoint] = buildConnector({ ...opts.requestTls });
         const agentFactory = opts.factory || defaultAgentFactory;
         const factory = (origin2, options) => {
@@ -8586,13 +8586,13 @@ var require_proxy_agent = __commonJS({
           if (!this[kTunnelProxy] && protocol2 === "http:" && this[kProxy].protocol === "http:") {
             return new Http1ProxyWrapper(this[kProxy].uri, {
               headers: this[kProxyHeaders],
-              connect: connect2,
+              connect,
               factory: agentFactory
             });
           }
           return agentFactory(origin2, options);
         };
-        this[kClient] = clientFactory(url, { connect: connect2 });
+        this[kClient] = clientFactory(url, { connect });
         this[kAgent] = new Agent3({
           ...opts,
           factory,
@@ -10287,10 +10287,10 @@ var require_api_connect = __commonJS({
         }
       }
     };
-    function connect2(opts, callback) {
+    function connect(opts, callback) {
       if (callback === void 0) {
         return new Promise((resolve2, reject) => {
-          connect2.call(this, opts, (err, data) => {
+          connect.call(this, opts, (err, data) => {
             return err ? reject(err) : resolve2(data);
           });
         });
@@ -10306,7 +10306,7 @@ var require_api_connect = __commonJS({
         queueMicrotask(() => callback(err, { opaque }));
       }
     }
-    module2.exports = connect2;
+    module2.exports = connect;
   }
 });
 
@@ -22972,7 +22972,6 @@ function _getGlobal(key, defaultValue) {
 // src/index.ts
 var import_node_child_process = require("node:child_process");
 var fs4 = __toESM(require("node:fs"), 1);
-var net = __toESM(require("node:net"), 1);
 var os7 = __toESM(require("node:os"), 1);
 var path5 = __toESM(require("node:path"), 1);
 var GITHUB_ISSUER = "https://token.actions.githubusercontent.com";
@@ -23178,7 +23177,6 @@ exec ${q(hookBin)} send --socket ${q(socket)}
   }
   info(`niks3-hook serve started (pid ${child2.pid}, socket ${socket})`);
   saveState("daemonPid", String(child2.pid));
-  saveState("daemonSocket", socket);
   saveState("daemonLog", logPath);
 }
 function writeTokenScript(workDir, audience) {
@@ -23228,9 +23226,8 @@ async function post() {
 }
 async function stopDaemon() {
   const pid = parseInt(getState("daemonPid") || "0", 10);
-  const socket = getState("daemonSocket");
-  if (!pid || !socket) {
-    warning("niks3-hook daemon pid/socket not recorded; nothing to stop");
+  if (!pid) {
+    warning("niks3-hook daemon pid not recorded; nothing to stop");
     return;
   }
   const timeoutSec = parseInt(getInput("drain-timeout") || "600", 10);
@@ -23243,7 +23240,7 @@ async function stopDaemon() {
   const deadline = Date.now() + timeoutSec * 1e3;
   let lastBeat = Date.now();
   while (Date.now() < deadline) {
-    if (!await socketAlive(socket)) {
+    if (!alive(pid)) {
       notice("niks3: upload daemon drained");
       return;
     }
@@ -23259,15 +23256,22 @@ async function stopDaemon() {
   } catch {
   }
 }
-function socketAlive(socket) {
-  return new Promise((resolve2) => {
-    const conn = net.connect(socket);
-    conn.once("connect", () => {
-      conn.destroy();
-      resolve2(true);
-    });
-    conn.once("error", () => resolve2(false));
-  });
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+  } catch {
+    return false;
+  }
+  if (process.platform === "linux") {
+    try {
+      const stat2 = fs4.readFileSync(`/proc/${pid}/stat`, "utf8");
+      const state = stat2.slice(stat2.lastIndexOf(")") + 2, stat2.lastIndexOf(")") + 3);
+      if (state === "Z") return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
 }
 function sleep(ms) {
   return new Promise((resolve2) => setTimeout(resolve2, ms));
