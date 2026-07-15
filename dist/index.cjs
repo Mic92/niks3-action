@@ -22566,6 +22566,14 @@ function getBooleanInput(name, options) {
   throw new TypeError(`Input does not meet YAML 1.2 "Core Schema" specification: ${name}
 Support boolean input list: \`true | True | TRUE | false | False | FALSE\``);
 }
+function setOutput(name, value) {
+  const filePath = process.env["GITHUB_OUTPUT"] || "";
+  if (filePath) {
+    return issueFileCommand("OUTPUT", prepareKeyValueMessage(name, value));
+  }
+  process.stdout.write(os5.EOL);
+  issueCommand("set-output", { name }, toCommandValue(value));
+}
 function setFailed(message) {
   process.exitCode = ExitCode.Failure;
   error(message);
@@ -23176,6 +23184,7 @@ exec ${q(hookBin)} send --socket ${q(socket)}
     await sleep(50);
   }
   info(`niks3-hook serve started (pid ${child2.pid}, socket ${socket})`);
+  setOutput("auth-token-script", tokenScript);
   saveState("daemonPid", String(child2.pid));
   saveState("daemonLog", logPath);
 }
