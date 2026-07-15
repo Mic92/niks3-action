@@ -74,6 +74,7 @@ async function setup(): Promise<void> {
       break
   }
 
+  core.setOutput('binary-dir', binDir)
   core.saveState('mode', mode)
   core.saveState('workDir', workDir)
   core.saveState('binDir', binDir)

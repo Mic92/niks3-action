@@ -53,6 +53,14 @@ for server configuration and advanced options.
 
 ## Outputs
 
+Following outputs are generally available for use in subsequent steps:
+
+| Output | Description |
+|---|---|
+| `binary-dir` | the directory containing the niks3 binary |
+
+Following outputs are only available when the action is working in `daemon` mode:
+
 | Output | Description |
 |---|---|
 | `auth-token-script` | a script that can be used with `niks3 --auth-token-script` to authenticate with the niks3 server |
