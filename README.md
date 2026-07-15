@@ -51,6 +51,13 @@ for server configuration and advanced options.
 | `niks3-bin` | no | path to a niks3 binary, instead of downloading the release |
 | `debug` | no | enable debug logging |
 
+## Outputs
+
+| Output | Description |
+|---|---|
+| `auth-token-script` | a script that can be used with `niks3 --auth-token-script` to authenticate with the niks3 server |
+| `socket` | the path to the socket file that the niks3-hook serve process listens on |
+
 ## Development
 
 ```sh
