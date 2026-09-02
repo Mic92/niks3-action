@@ -37,6 +37,13 @@ inputs:
     description: >-
       Enable debug logging.
     default: 'false'
+outputs:
+  binary-dir:
+    description: Directory containing the niks3 and niks3-hook binaries.
+  auth-token-script:
+    description: Script printing a fresh OIDC token, for `niks3 --auth-token-script` (daemon mode only).
+  socket:
+    description: Unix socket the niks3-hook serve daemon listens on (daemon mode only).
 runs:
   using: node24
   main: dist/index.cjs

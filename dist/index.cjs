@@ -23010,6 +23010,7 @@ async function setup() {
     case "none":
       break;
   }
+  setOutput("binary-dir", binDir);
   saveState("mode", mode);
   saveState("workDir", workDir);
   saveState("binDir", binDir);
@@ -23185,6 +23186,7 @@ exec ${q(hookBin)} send --socket ${q(socket)}
   }
   info(`niks3-hook serve started (pid ${child2.pid}, socket ${socket})`);
   setOutput("auth-token-script", tokenScript);
+  setOutput("socket", socket);
   saveState("daemonPid", String(child2.pid));
   saveState("daemonLog", logPath);
 }
