@@ -1,0 +1,65 @@
+# NIKS3_VERSION is baked into dist/ at build time, so dependabot can't bump
+# it. Poll the niks3 releases and open a PR with the new pin + rebuilt dist.
+name: Update niks3
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  update:
+    runs-on: ubuntu-slim
+    steps:
+      # App token so the PR triggers CI and auto-merge can land it;
+      # GITHUB_TOKEN-created PRs don't run workflows.
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+      - id: check
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          latest=$(gh release view -R Mic92/niks3 --json tagName -q .tagName)
+          latest=${latest#v}
+          current=$(cat NIKS3_VERSION)
+          echo "latest=$latest" >>"$GITHUB_OUTPUT"
+          if [[ "$latest" != "$current" ]]; then
+            echo "$latest" >NIKS3_VERSION
+            echo "bump=true" >>"$GITHUB_OUTPUT"
+          fi
+      - if: steps.check.outputs.bump
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - if: steps.check.outputs.bump
+        run: |
+          npm ci
+          npm run build
+      - if: steps.check.outputs.bump
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          VERSION: ${{ steps.check.outputs.latest }}
+        run: |
+          branch=update-niks3
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add NIKS3_VERSION dist/
+          git commit -m "niks3: $VERSION"
+          git push -f origin "$branch"
+          if [[ -z "$(gh pr list --head "$branch" --state open -q '.[].number' --json number)" ]]; then
+            gh pr create --head "$branch" --title "niks3: $VERSION" \
+              --body "https://github.com/Mic92/niks3/releases/tag/v$VERSION" \
+              --label dependencies
+          else
+            gh pr edit "$branch" --title "niks3: $VERSION" \
+              --body "https://github.com/Mic92/niks3/releases/tag/v$VERSION"
+          fi
+          gh pr merge --auto --merge "$branch"
