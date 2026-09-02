@@ -74,6 +74,7 @@ async function setup(): Promise<void> {
       break
   }
 
+  core.setOutput('binary-dir', binDir)
   core.saveState('mode', mode)
   core.saveState('workDir', workDir)
   core.saveState('binDir', binDir)
@@ -301,6 +302,8 @@ async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig)
   }
 
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
+  core.setOutput('auth-token-script', tokenScript)
+  core.setOutput('socket', socket)
   core.saveState('daemonPid', String(child.pid))
   core.saveState('daemonLog', logPath)
 }
