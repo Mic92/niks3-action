@@ -60,12 +60,17 @@ async function setup(): Promise<void> {
 
   writeNixConf(workDir, cfg)
 
+  const tokenScript = cfg.audience && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+    ? writeTokenScript(workDir, cfg.audience)
+    : ''
+  if (tokenScript) core.setOutput('auth-token-script', tokenScript)
+
   const mode = await pickMode(cfg)
   core.info(`Push mode: ${mode}`)
 
   switch (mode) {
     case 'daemon':
-      await startDaemon(binDir, workDir, cfg)
+      await startDaemon(binDir, workDir, cfg, tokenScript)
       break
     case 'storescan':
       writeStoreSnapshot(path.join(workDir, 'store-pre'))
@@ -79,7 +84,7 @@ async function setup(): Promise<void> {
   core.saveState('workDir', workDir)
   core.saveState('binDir', binDir)
   core.saveState('serverURL', cfg.serverURL)
-  core.saveState('audience', cfg.audience)
+  core.saveState('tokenScript', tokenScript)
   core.saveState('debug', String(cfg.debug))
 }
 
@@ -246,13 +251,12 @@ function isTrustedUser(): boolean {
   return trusted.includes(username) || trusted.includes('*')
 }
 
-// startDaemon writes the post-build-hook shim, the OIDC token script, and
+// startDaemon writes the post-build-hook shim and
 // forks `niks3-hook serve` detached in its own process group so the runner's
 // step-end cleanup doesn't take it down early.
-async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig): Promise<void> {
+async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig, tokenScript: string): Promise<void> {
   const hookBin = path.join(binDir, 'niks3-hook')
   const socket = socketPath(workDir)
-  const tokenScript = writeTokenScript(workDir, cfg.audience)
 
   // post-build-hook runs with a stripped env (only DRV_PATH + OUT_PATHS per
   // `man nix.conf`); the shim bakes in absolute paths resolved now.
@@ -302,7 +306,6 @@ async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig)
   }
 
   core.info(`niks3-hook serve started (pid ${child.pid}, socket ${socket})`)
-  core.setOutput('auth-token-script', tokenScript)
   core.setOutput('socket', socket)
   core.saveState('daemonPid', String(child.pid))
   core.saveState('daemonLog', logPath)
@@ -469,7 +472,7 @@ function pushStoreDiff(): void {
 
   core.startGroup(`niks3: pushing ${added.length} paths`)
   try {
-    const tokenScript = writeTokenScript(workDir, core.getState('audience'))
+    const tokenScript = core.getState('tokenScript')
     const args = [
       'push',
       '--server-url', core.getState('serverURL'),

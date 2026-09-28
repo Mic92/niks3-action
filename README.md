@@ -44,7 +44,7 @@ for server configuration and advanced options.
 |---|---|---|
 | `server-url` | yes | niks3 server URL |
 | `substituter` | no | override the substituter URL, e.g. a CDN mirror (defaults from server) |
-| `skip-push` | no | configure the substituter only, don't upload |
+| `skip-push` | no | disable automatic uploads; keep the OIDC helper available for explicit uploads |
 | `cache-config-timeout` | no | seconds before each /api/cache-config request times out (default 15) |
 | `cache-config-retries` | no | extra attempts to fetch /api/cache-config after a transient failure (default 3) |
 | `drain-timeout` | no | seconds to wait for uploads to finish in the post step (default 600) |
@@ -63,7 +63,7 @@ Following outputs are only available when the action is working in `daemon` mode
 
 | Output | Description |
 |---|---|
-| `auth-token-script` | a script that can be used with `niks3 --auth-token-script` to authenticate with the niks3 server |
+| `auth-token-script` | a script that can be used with `niks3 --auth-token-script` to authenticate with the niks3 server; available in all modes (including `skip-push`) when the job has OIDC permission and the server provides an audience |
 | `socket` | the path to the socket file that the niks3-hook serve process listens on |
 
 ## Development

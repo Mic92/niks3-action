@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - run: node --test test/*.test.mjs
       - name: Verify dist/ is up to date
         run: |
           if [[ -n "$(git status --porcelain dist/)" ]]; then
