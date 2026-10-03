@@ -23030,7 +23030,8 @@ async function resolveConfig() {
     publicKeys: fetched?.public_keys ?? [],
     audience: fetched?.oidc_audience ?? "",
     skipPush: getBooleanInput("skip-push"),
-    debug: getBooleanInput("debug")
+    debug: getBooleanInput("debug"),
+    maxConcurrentUploads: positiveIntInput("max-concurrent-uploads", 30)
   };
 }
 async function fetchCacheConfig(serverURL) {
@@ -23163,7 +23164,9 @@ exec ${q(hookBin)} send --socket ${q(socket)}
     "--auth-token-script",
     tokenScript,
     "--idle-exit-timeout",
-    "0"
+    "0",
+    "--max-concurrent-uploads",
+    String(cfg.maxConcurrentUploads)
   ];
   if (cfg.debug) args.push("--debug");
   fs4.accessSync(hookBin, fs4.constants.X_OK);
@@ -23306,7 +23309,9 @@ function pushStoreDiff() {
       "--server-url",
       getState("serverURL"),
       "--auth-token-script",
-      tokenScript
+      tokenScript,
+      "--max-concurrent-uploads",
+      String(positiveIntInput("max-concurrent-uploads", 30))
     ];
     if (getState("debug") === "true") args.push("--debug");
     args.push(...added);

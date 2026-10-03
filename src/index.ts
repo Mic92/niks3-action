@@ -49,6 +49,7 @@ interface ResolvedConfig {
   audience: string
   skipPush: boolean
   debug: boolean
+  maxConcurrentUploads: number
 }
 
 async function setup(): Promise<void> {
@@ -106,6 +107,7 @@ async function resolveConfig(): Promise<ResolvedConfig> {
     audience: fetched?.oidc_audience ?? '',
     skipPush: core.getBooleanInput('skip-push'),
     debug: core.getBooleanInput('debug'),
+    maxConcurrentUploads: positiveIntInput('max-concurrent-uploads', 30),
   }
 }
 
@@ -278,6 +280,7 @@ async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig,
     '--server-url', cfg.serverURL,
     '--auth-token-script', tokenScript,
     '--idle-exit-timeout', '0',
+    '--max-concurrent-uploads', String(cfg.maxConcurrentUploads),
   ]
   if (cfg.debug) args.push('--debug')
 
@@ -478,6 +481,7 @@ function pushStoreDiff(): void {
       'push',
       '--server-url', core.getState('serverURL'),
       '--auth-token-script', tokenScript,
+      '--max-concurrent-uploads', String(positiveIntInput('max-concurrent-uploads', 30)),
     ]
     if (core.getState('debug') === 'true') args.push('--debug')
     args.push(...added)
