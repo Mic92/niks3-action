@@ -48,6 +48,7 @@ for server configuration and advanced options.
 | `cache-config-timeout` | no | seconds before each /api/cache-config request times out (default 15) |
 | `cache-config-retries` | no | extra attempts to fetch /api/cache-config after a transient failure (default 3) |
 | `drain-timeout` | no | seconds to wait for uploads to finish in the post step (default 600) |
+| `max-concurrent-uploads` | no | concurrent NAR upload limit passed to niks3-hook serve and the storescan fallback's niks3 push (default 30) |
 | `niks3-bin` | no | path to a niks3 binary, instead of downloading the release |
 | `debug` | no | enable debug logging |
 
