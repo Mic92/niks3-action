@@ -23340,8 +23340,38 @@ async function resolveBinDir() {
   const url = `https://github.com/Mic92/niks3/releases/download/${"v1.14.1"}/niks3_${plat}.tar.gz`;
   info(`Downloading niks3 ${"v1.14.1"} from ${url}`);
   const tarball = await downloadTool(url);
+  verifyAttestation(tarball);
   const extracted = await extractTar(tarball);
   return cacheDir(extracted, "niks3", "v1.14.1", plat);
+}
+function verifyAttestation(file) {
+  const token = getInput("github-token");
+  if (process.env.FORGEJO_SERVER_URL || !token) {
+    info("Skipping attestation check (not on GitHub or no token)");
+    return;
+  }
+  if ((0, import_node_child_process.spawnSync)("gh", ["--version"], { stdio: "ignore" }).status !== 0) {
+    info("Skipping attestation check (gh not found)");
+    return;
+  }
+  const r = (0, import_node_child_process.spawnSync)(
+    "gh",
+    [
+      "attestation",
+      "verify",
+      file,
+      "-R",
+      "Mic92/niks3",
+      "--signer-workflow",
+      "Mic92/niks3/.github/workflows/release.yml"
+    ],
+    { encoding: "utf8", env: { ...process.env, GH_TOKEN: token } }
+  );
+  if (r.status !== 0) {
+    throw new Error(`attestation check failed for ${file}:
+${r.stderr}`);
+  }
+  info("niks3 archive attestation verified");
 }
 function platformTuple() {
   const sys = { linux: "Linux", darwin: "Darwin" };

@@ -17,6 +17,10 @@ inputs:
     description: >-
       Do not push automatically. The auth-token-script output is still provided for explicit uploads.
     default: 'false'
+  github-token:
+    description: >-
+      Token used to verify the build attestation of the downloaded niks3 archive with `gh`. The check is skipped when `gh` is not installed.
+    default: ${{ github.token }}
   niks3-bin:
     description: >-
       Path to a niks3 binary. Defaults to downloading the pinned niks3 release.

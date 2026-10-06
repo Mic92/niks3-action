@@ -519,8 +519,39 @@ async function resolveBinDir(): Promise<string> {
   core.info(`Downloading niks3 ${NIKS3_VERSION} from ${url}`)
 
   const tarball = await tc.downloadTool(url)
+  verifyAttestation(tarball)
   const extracted = await tc.extractTar(tarball)
   return tc.cacheDir(extracted, 'niks3', NIKS3_VERSION, plat)
+}
+
+// verifyAttestation checks that the archive was built by the niks3 release
+// workflow. It is best effort: without gh, a token or a GitHub host there is
+// nothing to check against, but a failing check must stop the run, because
+// the archive may have been replaced after it was pinned.
+function verifyAttestation(file: string): void {
+  const token = core.getInput('github-token')
+  if (process.env.FORGEJO_SERVER_URL || !token) {
+    core.info('Skipping attestation check (not on GitHub or no token)')
+    return
+  }
+  if (spawnSync('gh', ['--version'], { stdio: 'ignore' }).status !== 0) {
+    core.info('Skipping attestation check (gh not found)')
+    return
+  }
+
+  const r = spawnSync(
+    'gh',
+    [
+      'attestation', 'verify', file,
+      '-R', 'Mic92/niks3',
+      '--signer-workflow', 'Mic92/niks3/.github/workflows/release.yml',
+    ],
+    { encoding: 'utf8', env: { ...process.env, GH_TOKEN: token } },
+  )
+  if (r.status !== 0) {
+    throw new Error(`attestation check failed for ${file}:\n${r.stderr}`)
+  }
+  core.info('niks3 archive attestation verified')
 }
 
 // platformTuple returns the goreleaser archive suffix (e.g. "Linux_x86_64").

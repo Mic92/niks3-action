@@ -49,6 +49,7 @@ for server configuration and advanced options.
 | `cache-config-retries` | no | extra attempts to fetch /api/cache-config after a transient failure (default 3) |
 | `drain-timeout` | no | seconds to wait for uploads to finish in the post step (default 600) |
 | `max-concurrent-uploads` | no | maximum concurrent NAR uploads (default 30). Lower it if a reverse proxy times out slow uploads |
+| `github-token` | no | token for verifying the niks3 archive's build attestation with `gh` (defaults to the workflow token). The check is skipped without `gh` and on Forgejo |
 | `niks3-bin` | no | path to a niks3 binary, instead of downloading the release |
 | `debug` | no | enable debug logging |
 
