@@ -1,0 +1,35 @@
+# Users reference the action as @v1, so a new niks3 pin only reaches them once
+# a release is tagged and v1 moves. Do that when the update PR lands.
+name: Release
+on:
+  push:
+    branches: [main]
+    paths: [NIKS3_VERSION]
+concurrency:
+  group: release
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+      - name: Tag the next minor release and move v1
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          latest=$(git tag -l 'v1.*.*' | sort -V | tail -n1)
+          minor=${latest#v1.}
+          minor=${minor%%.*}
+          next="v1.$((minor + 1)).0"
+          gh release create "$next" --target "$GITHUB_SHA" --title "$next" --generate-notes
+          git tag -f v1 "$GITHUB_SHA"
+          git push -f origin v1
