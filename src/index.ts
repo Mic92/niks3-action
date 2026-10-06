@@ -60,6 +60,7 @@ async function setup(): Promise<void> {
 
   writeNixConf(workDir, cfg)
 
+  // Independent of push mode so `skip-push` users can still run `niks3 push`.
   const tokenScript = cfg.audience && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
     ? writeTokenScript(workDir, cfg.audience)
     : ''
@@ -251,9 +252,9 @@ function isTrustedUser(): boolean {
   return trusted.includes(username) || trusted.includes('*')
 }
 
-// startDaemon writes the post-build-hook shim and
-// forks `niks3-hook serve` detached in its own process group so the runner's
-// step-end cleanup doesn't take it down early.
+// startDaemon writes the post-build-hook shim and forks `niks3-hook serve`
+// detached in its own process group so the runner's step-end cleanup doesn't
+// take it down early.
 async function startDaemon(binDir: string, workDir: string, cfg: ResolvedConfig, tokenScript: string): Promise<void> {
   const hookBin = path.join(binDir, 'niks3-hook')
   const socket = socketPath(workDir)

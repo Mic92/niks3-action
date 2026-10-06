@@ -15,7 +15,7 @@ inputs:
     required: false
   skip-push:
     description: >-
-      Disable automatic uploads. The auth-token-script output remains available for explicit uploads when OIDC is configured.
+      Do not push automatically. The auth-token-script output is still provided for explicit uploads.
     default: 'false'
   niks3-bin:
     description: >-
@@ -41,7 +41,7 @@ outputs:
   binary-dir:
     description: Directory containing the niks3 and niks3-hook binaries.
   auth-token-script:
-    description: Script printing a fresh OIDC token, for `niks3 --auth-token-script`. Available whenever the job has OIDC permission and the server provides an audience, including with skip-push.
+    description: Script printing a fresh OIDC token, for `niks3 --auth-token-script`. Empty without OIDC permission or a server audience.
   socket:
     description: Unix socket the niks3-hook serve daemon listens on (daemon mode only).
 runs:
