@@ -22998,11 +22998,13 @@ async function setup() {
   fs4.mkdirSync(workDir, { recursive: true });
   const cfg = await resolveConfig();
   writeNixConf(workDir, cfg);
+  const tokenScript = cfg.audience && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN ? writeTokenScript(workDir, cfg.audience) : "";
+  if (tokenScript) setOutput("auth-token-script", tokenScript);
   const mode = await pickMode(cfg);
   info(`Push mode: ${mode}`);
   switch (mode) {
     case "daemon":
-      await startDaemon(binDir, workDir, cfg);
+      await startDaemon(binDir, workDir, cfg, tokenScript);
       break;
     case "storescan":
       writeStoreSnapshot(path5.join(workDir, "store-pre"));
@@ -23015,7 +23017,7 @@ async function setup() {
   saveState("workDir", workDir);
   saveState("binDir", binDir);
   saveState("serverURL", cfg.serverURL);
-  saveState("audience", cfg.audience);
+  saveState("tokenScript", tokenScript);
   saveState("debug", String(cfg.debug));
 }
 async function resolveConfig() {
@@ -23138,10 +23140,9 @@ function isTrustedUser() {
   }
   return trusted.includes(username) || trusted.includes("*");
 }
-async function startDaemon(binDir, workDir, cfg) {
+async function startDaemon(binDir, workDir, cfg, tokenScript) {
   const hookBin = path5.join(binDir, "niks3-hook");
   const socket = socketPath(workDir);
-  const tokenScript = writeTokenScript(workDir, cfg.audience);
   const shim = path5.join(workDir, "post-build-hook");
   fs4.writeFileSync(shim, `#!/bin/sh
 exec ${q(hookBin)} send --socket ${q(socket)}
@@ -23185,7 +23186,6 @@ exec ${q(hookBin)} send --socket ${q(socket)}
     await sleep(50);
   }
   info(`niks3-hook serve started (pid ${child2.pid}, socket ${socket})`);
-  setOutput("auth-token-script", tokenScript);
   setOutput("socket", socket);
   saveState("daemonPid", String(child2.pid));
   saveState("daemonLog", logPath);
@@ -23300,7 +23300,7 @@ function pushStoreDiff() {
   }
   startGroup(`niks3: pushing ${added.length} paths`);
   try {
-    const tokenScript = writeTokenScript(workDir, getState("audience"));
+    const tokenScript = getState("tokenScript");
     const args = [
       "push",
       "--server-url",
