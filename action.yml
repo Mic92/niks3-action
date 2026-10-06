@@ -35,7 +35,7 @@ inputs:
     default: '600'
   max-concurrent-uploads:
     description: >-
-      Concurrent NAR upload limit passed to niks3-hook serve and the storescan fallback's niks3 push.
+      Maximum number of concurrent NAR uploads.
     default: '30'
   debug:
     description: >-

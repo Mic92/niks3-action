@@ -23018,6 +23018,7 @@ async function setup() {
   saveState("binDir", binDir);
   saveState("serverURL", cfg.serverURL);
   saveState("tokenScript", tokenScript);
+  saveState("maxConcurrentUploads", String(cfg.maxConcurrentUploads));
   saveState("debug", String(cfg.debug));
 }
 async function resolveConfig() {
@@ -23311,7 +23312,7 @@ function pushStoreDiff() {
       "--auth-token-script",
       tokenScript,
       "--max-concurrent-uploads",
-      String(positiveIntInput("max-concurrent-uploads", 30))
+      getState("maxConcurrentUploads")
     ];
     if (getState("debug") === "true") args.push("--debug");
     args.push(...added);

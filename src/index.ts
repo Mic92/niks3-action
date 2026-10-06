@@ -87,6 +87,7 @@ async function setup(): Promise<void> {
   core.saveState('binDir', binDir)
   core.saveState('serverURL', cfg.serverURL)
   core.saveState('tokenScript', tokenScript)
+  core.saveState('maxConcurrentUploads', String(cfg.maxConcurrentUploads))
   core.saveState('debug', String(cfg.debug))
 }
 
@@ -481,7 +482,7 @@ function pushStoreDiff(): void {
       'push',
       '--server-url', core.getState('serverURL'),
       '--auth-token-script', tokenScript,
-      '--max-concurrent-uploads', String(positiveIntInput('max-concurrent-uploads', 30)),
+      '--max-concurrent-uploads', core.getState('maxConcurrentUploads'),
     ]
     if (core.getState('debug') === 'true') args.push('--debug')
     args.push(...added)
