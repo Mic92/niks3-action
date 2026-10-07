@@ -5,11 +5,12 @@ on:
   schedule:
     - cron: "17 6 * * *"
   workflow_dispatch:
-permissions:
-  contents: read
 jobs:
   update:
     runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      actions: write
     steps:
       # App token so the PR triggers CI and auto-merge can land it;
       # GITHUB_TOKEN-created PRs don't run workflows.
@@ -75,3 +76,12 @@ jobs:
               --body "https://github.com/Mic92/niks3/releases/tag/v$VERSION"
           fi
           gh pr merge --auto --merge "$branch"
+      # The app-token push sometimes doesn't fire pull_request, which leaves
+      # the required checks missing and the PR blocked. workflow_dispatch runs
+      # attach to the branch head, so start them explicitly.
+      - if: steps.check.outputs.bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ci.yml --ref update-niks3
+          gh workflow run test.yml --ref update-niks3
