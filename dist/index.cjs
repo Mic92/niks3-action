@@ -23332,17 +23332,17 @@ async function resolveBinDir() {
     return path5.dirname(override);
   }
   const plat = platformTuple();
-  const cached = find("niks3", "v1.15.0", plat);
+  const cached = find("niks3", "v1.16.0", plat);
   if (cached) {
-    info(`Found cached niks3 ${"v1.15.0"} (${plat})`);
+    info(`Found cached niks3 ${"v1.16.0"} (${plat})`);
     return cached;
   }
-  const url = `https://github.com/Mic92/niks3/releases/download/${"v1.15.0"}/niks3_${plat}.tar.gz`;
-  info(`Downloading niks3 ${"v1.15.0"} from ${url}`);
+  const url = `https://github.com/Mic92/niks3/releases/download/${"v1.16.0"}/niks3_${plat}.tar.gz`;
+  info(`Downloading niks3 ${"v1.16.0"} from ${url}`);
   const tarball = await downloadTool(url);
   verifyAttestation(tarball);
   const extracted = await extractTar(tarball);
-  return cacheDir(extracted, "niks3", "v1.15.0", plat);
+  return cacheDir(extracted, "niks3", "v1.16.0", plat);
 }
 function verifyAttestation(file) {
   const token = getInput("github-token");
